@@ -28,6 +28,8 @@ async def lifespan(app: FastAPI):
     print("[APP] Ready.")
     yield
     # Shutdown
+    from app.agent.llm import close_client
+    await close_client()
     await close_db()
     print("[APP] Shut down.")
 
