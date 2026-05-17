@@ -18,11 +18,27 @@ _RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 def _get_client() -> AsyncAzureOpenAI:
     global _client
     if _client is None:
+        import os
+        import httpx
+        import ssl
+
         settings = get_settings()
+
+        # Build SSL context that trusts both system CAs and corporate proxy CA
+        ssl_cert_file = os.environ.get("SSL_CERT_FILE")
+        if ssl_cert_file and os.path.exists(ssl_cert_file):
+            ssl_ctx = ssl.create_default_context()  # loads system default CAs
+            ssl_ctx.load_verify_locations(cafile=ssl_cert_file)  # add corporate CA on top
+            http_client = httpx.AsyncClient(verify=ssl_ctx)
+            _logger.info("Using custom CA bundle: %s", ssl_cert_file)
+        else:
+            http_client = httpx.AsyncClient()
+
         _client = AsyncAzureOpenAI(
             azure_endpoint=settings.azure_openai_endpoint,
             api_key=settings.azure_openai_key,
             api_version=settings.azure_openai_api_version,
+            http_client=http_client,
         )
     return _client
 
