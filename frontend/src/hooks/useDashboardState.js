@@ -174,9 +174,10 @@ export default function useDashboardState() {
   // Load initial data
   const loadInitialData = useCallback(async () => {
     try {
+      const apiBase = import.meta.env.VITE_API_URL ?? `${window.location.origin}`;
       const [topoRes, panelsRes] = await Promise.all([
-        fetch('http://localhost:8000/api/topology'),
-        fetch('http://localhost:8000/api/panels'),
+        fetch(`${apiBase}/api/topology`),
+        fetch(`${apiBase}/api/panels`),
       ]);
       const topology = await topoRes.json();
       const panels = await panelsRes.json();

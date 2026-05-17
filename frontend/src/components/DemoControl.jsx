@@ -4,17 +4,18 @@ import { Play, RotateCcw, ChevronDown, ChevronUp } from 'lucide-react';
 export default function DemoControl({ demo }) {
   const [open, setOpen] = useState(true);
   const [loading, setLoading] = useState(false);
+  const apiBase = import.meta.env.VITE_API_URL ?? `${window.location.origin}`;
 
   const start = async () => {
     setLoading(true);
-    try { await fetch('http://localhost:8000/api/demo/start', { method: 'POST' }); } catch {}
+    try { await fetch(`${apiBase}/api/demo/start`, { method: 'POST' }); } catch {}
     setLoading(false);
   };
 
   const reset = async () => {
     setLoading(true);
     try {
-      await fetch('http://localhost:8000/api/demo/reset', { method: 'POST' });
+      await fetch(`${apiBase}/api/demo/reset`, { method: 'POST' });
       window.location.reload();
     } catch {}
     setLoading(false);
