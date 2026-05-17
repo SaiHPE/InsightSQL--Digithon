@@ -52,7 +52,7 @@ def _next_deployment() -> str:
     return next(_deployment_cycle)
 
 
-async def _call_with_failover(messages, temperature, max_tokens, response_format=None):
+async def _call_with_failover(messages, temperature, max_completion_tokens, response_format=None):
     """Call completions with failover across deployments on transient errors."""
     settings = get_settings()
     num_deployments = len(settings.azure_openai_deployments)
@@ -63,7 +63,7 @@ async def _call_with_failover(messages, temperature, max_tokens, response_format
 
     for _ in range(num_deployments):
         deployment = _next_deployment()
-        kwargs = dict(model=deployment, messages=messages, temperature=temperature, max_tokens=max_tokens)
+        kwargs = dict(model=deployment, messages=messages, temperature=temperature, max_completion_tokens=max_completion_tokens)
         if response_format:
             kwargs["response_format"] = response_format
         try:
@@ -86,7 +86,7 @@ async def generate_sql(system_prompt: str, user_prompt: str, temperature: float 
     """Generate SQL from a system+user prompt pair. Returns raw SQL string."""
     response = await _call_with_failover(
         messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
-        temperature=temperature, max_tokens=2000,
+        temperature=temperature, max_completion_tokens=2000,
     )
     content = response.choices[0].message.content.strip()
     if content.startswith("```"):
@@ -100,7 +100,7 @@ async def generate_narrative(system_prompt: str, evidence_text: str, temperature
     """Generate a human-readable narrative from evidence."""
     response = await _call_with_failover(
         messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": evidence_text}],
-        temperature=temperature, max_tokens=1500,
+        temperature=temperature, max_completion_tokens=1500,
     )
     return response.choices[0].message.content.strip()
 
@@ -109,7 +109,7 @@ async def generate_json(system_prompt: str, user_prompt: str, temperature: float
     """Generate a JSON response from a system+user prompt pair."""
     response = await _call_with_failover(
         messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
-        temperature=temperature, max_tokens=2000,
+        temperature=temperature, max_completion_tokens=2000,
         response_format={"type": "json_object"},
     )
     return response.choices[0].message.content.strip()
