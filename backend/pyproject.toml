@@ -1,0 +1,16 @@
+[project]
+name = "insightsql-backend"
+version = "0.1.0"
+description = "InsightSQL for HPE GreenLake SAP Operations"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "asyncpg>=0.30",
+    "openai>=1.40",
+    "sqlglot>=25",
+    "pydantic-settings>=2.5",
+    "python-dotenv>=1.0",
+    "paramiko>=3.0",
+]
