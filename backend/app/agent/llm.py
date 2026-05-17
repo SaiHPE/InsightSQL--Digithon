@@ -26,9 +26,16 @@ def _get_client() -> AsyncAzureOpenAI:
 
         # Build SSL context that trusts both system CAs and corporate proxy CA
         ssl_cert_file = os.environ.get("SSL_CERT_FILE")
-        if ssl_cert_file and os.path.exists(ssl_cert_file):
-            ssl_ctx = ssl.create_default_context()  # loads system default CAs
-            ssl_ctx.load_verify_locations(cafile=ssl_cert_file)  # add corporate CA on top
+        if ssl_cert_file:
+            if not os.path.isfile(ssl_cert_file):
+                _logger.error("SSL_CERT_FILE is set but does not exist: %s", ssl_cert_file)
+                raise FileNotFoundError(f"SSL_CERT_FILE is set but file does not exist: {ssl_cert_file}")
+            try:
+                ssl_ctx = ssl.create_default_context()  # loads system default CAs
+                ssl_ctx.load_verify_locations(cafile=ssl_cert_file)  # add corporate CA on top
+            except Exception as e:
+                _logger.error("Failed to load SSL_CERT_FILE %s: %s", ssl_cert_file, e)
+                raise
             http_client = httpx.AsyncClient(verify=ssl_ctx)
             _logger.info("Using custom CA bundle: %s", ssl_cert_file)
         else:

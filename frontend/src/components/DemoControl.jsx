@@ -8,17 +8,27 @@ export default function DemoControl({ demo }) {
 
   const start = async () => {
     setLoading(true);
-    try { await fetch(`${apiBase}/api/demo/start`, { method: 'POST' }); } catch {}
-    setLoading(false);
+    try {
+      const res = await fetch(`${apiBase}/api/demo/start`, { method: 'POST' });
+      if (!res.ok) throw new Error(`Demo start failed: ${res.status}`);
+    } catch (e) {
+      console.error('[Demo]', e);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const reset = async () => {
     setLoading(true);
     try {
-      await fetch(`${apiBase}/api/demo/reset`, { method: 'POST' });
+      const res = await fetch(`${apiBase}/api/demo/reset`, { method: 'POST' });
+      if (!res.ok) throw new Error(`Demo reset failed: ${res.status}`);
       window.location.reload();
-    } catch {}
-    setLoading(false);
+    } catch (e) {
+      console.error('[Demo]', e);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const running = demo.phase !== 'idle' && demo.phase !== 'complete';
