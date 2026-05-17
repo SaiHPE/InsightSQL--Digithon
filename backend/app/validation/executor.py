@@ -4,6 +4,9 @@ from dataclasses import dataclass, field
 import asyncpg
 import json
 
+MAX_ROWS = 1000
+STATEMENT_TIMEOUT_MS = "5000"  # 5 seconds
+
 
 @dataclass
 class ExecutionResult:
@@ -21,6 +24,7 @@ async def explain_query(pool: asyncpg.Pool, sql: str) -> ExecutionResult:
         try:
             async with conn.transaction():
                 await conn.execute("SET TRANSACTION READ ONLY")
+                await conn.execute(f"SET LOCAL statement_timeout = '{STATEMENT_TIMEOUT_MS}'")
                 plan_rows = await conn.fetch(f"EXPLAIN (FORMAT JSON) {sql}")
                 plan = json.loads(plan_rows[0]["QUERY PLAN"])
                 cost = plan[0].get("Plan", {}).get("Total Cost", 0)
@@ -30,18 +34,21 @@ async def explain_query(pool: asyncpg.Pool, sql: str) -> ExecutionResult:
 
 
 async def execute_readonly(pool: asyncpg.Pool, sql: str) -> ExecutionResult:
-    """Execute a query in a read-only transaction."""
+    """Execute a query in a read-only transaction with timeout and row cap."""
     async with pool.acquire() as conn:
         try:
             async with conn.transaction():
                 await conn.execute("SET TRANSACTION READ ONLY")
+                await conn.execute(f"SET LOCAL statement_timeout = '{STATEMENT_TIMEOUT_MS}'")
                 rows = await conn.fetch(sql)
 
                 if not rows:
                     return ExecutionResult(success=True, rows=[], columns=[], row_count=0)
 
                 columns = list(rows[0].keys())
-                result_rows = [dict(r) for r in rows]
+                # Cap rows to prevent resource exhaustion
+                capped_rows = rows[:MAX_ROWS]
+                result_rows = [dict(r) for r in capped_rows]
 
                 return ExecutionResult(
                     success=True,

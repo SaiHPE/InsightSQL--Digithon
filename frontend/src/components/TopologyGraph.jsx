@@ -62,7 +62,7 @@ export default function TopologyGraph({ topology }) {
     });
 
     return () => sim.stop();
-  }, [topology.nodes.length, topology.edges.length]);
+  }, [topology.nodes, topology.edges]);
 
   // Live status updates
   useEffect(() => {

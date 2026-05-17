@@ -53,7 +53,11 @@ async def normalize_metrics(pool: asyncpg.Pool, payload: dict) -> int:
     rows = []
     for metric_name, metric_value in metrics.items():
         unit = _infer_unit(metric_name)
-        rows.append((event_ts, resource_id, metric_name, float(metric_value), unit, json.dumps(labels)))
+        try:
+            value = float(metric_value)
+        except (TypeError, ValueError):
+            continue
+        rows.append((event_ts, resource_id, metric_name, value, unit, json.dumps(labels)))
 
     async with pool.acquire() as conn:
         await conn.executemany(
@@ -129,7 +133,8 @@ def _parse_ts(ts_str: str | None) -> datetime:
     if not ts_str:
         return datetime.now(timezone.utc)
     try:
-        return datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+        dt = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
     except (ValueError, AttributeError):
         return datetime.now(timezone.utc)
 

@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import ReactECharts from 'echarts-for-react';
 
-export default function TimelineChart({ metricsTimeline }) {
+export default function TimelineChart({ metricsTimeline = [] }) {
   const option = useMemo(() => {
     const sapData = [];
     const storageData = [];

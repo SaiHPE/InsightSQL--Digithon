@@ -3,9 +3,10 @@ import { useState, useEffect } from 'react';
 export default function IncidentBanner({ incident, rca }) {
   const [elapsed, setElapsed] = useState(0);
   useEffect(() => {
+    setElapsed(0);
     const t = setInterval(() => setElapsed(e => e + 1), 1000);
     return () => clearInterval(t);
-  }, [incident]);
+  }, [incident?.incident_id]);
 
   const impact = Math.round((elapsed / 60) * (incident.impact_per_min_usd || 11800));
   const confidence = rca?.confidence ? Math.round(rca.confidence * 100) : null;

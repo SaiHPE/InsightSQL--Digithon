@@ -8,22 +8,26 @@ from datetime import datetime, timedelta, timezone
 async def seed_all(pool: asyncpg.Pool):
     """Run all seed functions."""
     async with pool.acquire() as conn:
-        # Check if already seeded
-        count = await conn.fetchval("SELECT count(*) FROM ops.resources")
-        if count > 0:
-            print("[SEED] Database already seeded, skipping.")
-            return
+        async with conn.transaction():
+            # Serialize seeding across concurrent app instances
+            await conn.execute("SELECT pg_advisory_xact_lock(984321)")
+            count = await conn.fetchval("SELECT count(*) FROM ops.resources")
+            if count > 0:
+                print("[SEED] Database already seeded, skipping.")
+                return
 
-    await seed_resources(pool)
-    await seed_topology(pool)
+            await _seed_resources(conn)
+            await _seed_topology(conn)
+
+    # These use their own connections for bulk inserts
     await seed_baseline_metrics(pool)
     await seed_baseline_backups(pool)
     await seed_dashboard_panels(pool)
     print("[SEED] All seed data loaded.")
 
 
-async def seed_resources(pool: asyncpg.Pool):
-    """Seed the resource inventory."""
+async def _seed_resources(conn):
+    """Seed the resource inventory (within an existing transaction)."""
     resources = [
         # SAP SID
         ("sap_sid:PRD", "sap_sid", "SAP", "S/4HANA", "SAP PRD (Production)", "blr-dc1"),
@@ -41,17 +45,16 @@ async def seed_resources(pool: asyncpg.Pool):
         ("service:payroll-batch", "service", "SAP", "Payroll Batch Processing", "Payroll Batch Processing", "blr-dc1"),
     ]
 
-    async with pool.acquire() as conn:
-        await conn.executemany(
-            """INSERT INTO ops.resources (resource_id, resource_type, vendor, product, display_name, site)
-               VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING""",
-            resources,
-        )
+    await conn.executemany(
+        """INSERT INTO ops.resources (resource_id, resource_type, vendor, product, display_name, site)
+           VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING""",
+        resources,
+    )
     print(f"[SEED] Inserted {len(resources)} resources.")
 
 
-async def seed_topology(pool: asyncpg.Pool):
-    """Seed the resource topology edges."""
+async def _seed_topology(conn):
+    """Seed the resource topology edges (within an existing transaction)."""
     edges = [
         # SAP SID runs on hosts
         ("sap_sid:PRD", "host:prd-hana-01", "runs_on"),
@@ -70,13 +73,25 @@ async def seed_topology(pool: asyncpg.Pool):
         ("sap_sid:PRD", "service:payroll-batch", "serves"),
     ]
 
-    async with pool.acquire() as conn:
-        await conn.executemany(
-            """INSERT INTO ops.resource_edges (src_resource_id, dst_resource_id, edge_type)
-               VALUES ($1, $2, $3) ON CONFLICT DO NOTHING""",
-            edges,
-        )
+    await conn.executemany(
+        """INSERT INTO ops.resource_edges (src_resource_id, dst_resource_id, edge_type)
+           VALUES ($1, $2, $3) ON CONFLICT DO NOTHING""",
+        edges,
+    )
     print(f"[SEED] Inserted {len(edges)} topology edges.")
+
+
+# Keep these as public functions for backward compat, but they're called from seed_all
+async def seed_resources(pool: asyncpg.Pool):
+    """Seed the resource inventory."""
+    async with pool.acquire() as conn:
+        await _seed_resources(conn)
+
+
+async def seed_topology(pool: asyncpg.Pool):
+    """Seed the resource topology edges."""
+    async with pool.acquire() as conn:
+        await _seed_topology(conn)
 
 
 async def seed_baseline_metrics(pool: asyncpg.Pool):
@@ -253,15 +268,16 @@ async def seed_dashboard_panels(pool: asyncpg.Pool):
     ]
 
     async with pool.acquire() as conn:
-        for p in panels:
-            await conn.execute(
-                """INSERT INTO ops.dashboard_panels (panel_id, panel_name, contract_json, status)
-                   VALUES ($1, $2, $3::jsonb, 'active') ON CONFLICT DO NOTHING""",
-                p["panel_id"], p["panel_name"], p["contract_json"],
-            )
-            await conn.execute(
-                """INSERT INTO ops.panel_query_versions (panel_id, version_no, sql_text, generated_by, is_active)
-                   VALUES ($1, 1, $2, 'human', true) ON CONFLICT DO NOTHING""",
-                p["panel_id"], p["sql"],
-            )
+        async with conn.transaction():
+            for p in panels:
+                await conn.execute(
+                    """INSERT INTO ops.dashboard_panels (panel_id, panel_name, contract_json, status)
+                       VALUES ($1, $2, $3::jsonb, 'active') ON CONFLICT DO NOTHING""",
+                    p["panel_id"], p["panel_name"], p["contract_json"],
+                )
+                await conn.execute(
+                    """INSERT INTO ops.panel_query_versions (panel_id, version_no, sql_text, generated_by, is_active)
+                       VALUES ($1, 1, $2, 'human', true) ON CONFLICT DO NOTHING""",
+                    p["panel_id"], p["sql"],
+                )
     print(f"[SEED] Inserted {len(panels)} dashboard panels with v1 queries.")

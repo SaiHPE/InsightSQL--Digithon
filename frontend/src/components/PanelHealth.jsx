@@ -2,7 +2,7 @@ import { Check, X, Loader, Wrench } from 'lucide-react';
 
 const ICON = { active: <Check size={11} />, failed: <X size={11} />, healing: <Loader size={11} />, healed: <Wrench size={11} /> };
 
-export default function PanelHealth({ panels, healing }) {
+export default function PanelHealth({ panels = [], healing }) {
   const healingEntries = Object.values(healing || {});
 
   return (
@@ -33,7 +33,7 @@ export default function PanelHealth({ panels, healing }) {
         </div>
 
         {healingEntries.map(h => {
-          if (!h.old_sql && !h.new_sql) return null;
+          if (!h.error && !h.old_sql && !h.new_sql) return null;
           return (
             <div key={h.panel_id} className="anim-in">
               {h.error && <div className="error-pill">Error: {h.error}</div>}

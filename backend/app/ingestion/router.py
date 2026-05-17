@@ -1,7 +1,10 @@
 """Webhook ingestion endpoints."""
 
-from fastapi import APIRouter, Request
+import hmac
+import hashlib
+from fastapi import APIRouter, Request, HTTPException
 
+from app.config import get_settings
 from app.db.engine import get_pool
 from app.ws.manager import manager
 from app.ingestion.normalizer import normalize_alert, normalize_metrics, normalize_compute_event
@@ -9,9 +12,20 @@ from app.ingestion.normalizer import normalize_alert, normalize_metrics, normali
 router = APIRouter()
 
 
+def _verify_webhook(request: Request):
+    """Verify webhook API key if configured."""
+    settings = get_settings()
+    if not settings.webhook_api_key:
+        return  # No auth configured — allow (dev mode)
+    api_key = request.headers.get("X-Api-Key", "")
+    if not hmac.compare_digest(api_key, settings.webhook_api_key):
+        raise HTTPException(status_code=401, detail="Invalid or missing API key")
+
+
 @router.post("/alerts")
 async def receive_alert(request: Request):
     """Receive a Grafana-style alert webhook payload."""
+    _verify_webhook(request)
     payload = await request.json()
     pool = await get_pool()
 
@@ -32,6 +46,7 @@ async def receive_alert(request: Request):
 @router.post("/metrics")
 async def receive_metrics(request: Request):
     """Receive HPE storage/compute metrics payload."""
+    _verify_webhook(request)
     payload = await request.json()
     pool = await get_pool()
 
@@ -50,6 +65,7 @@ async def receive_metrics(request: Request):
 @router.post("/events")
 async def receive_compute_event(request: Request):
     """Receive HPE compute health event."""
+    _verify_webhook(request)
     payload = await request.json()
     pool = await get_pool()
 

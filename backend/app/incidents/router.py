@@ -1,7 +1,7 @@
 """Incident management endpoints."""
 
 import json
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 from app.db.engine import get_pool
 from app.ws.manager import manager
@@ -32,7 +32,7 @@ async def get_incident(incident_id: str):
             "SELECT * FROM ops.incidents WHERE incident_id = $1", incident_id
         )
         if not incident:
-            return {"error": "Incident not found"}
+            raise HTTPException(status_code=404, detail="Incident not found")
 
         evidence = await conn.fetch(
             """SELECT run_id, question, sql_text, result_json, row_count, confidence, created_at
@@ -64,7 +64,7 @@ async def ask_question(incident_id: str, body: dict):
 
     question = body.get("question", "")
     if not question:
-        return {"error": "question is required"}
+        raise HTTPException(status_code=422, detail="question is required")
 
     pool = await get_pool()
     result = await investigate(pool, incident_id, question)

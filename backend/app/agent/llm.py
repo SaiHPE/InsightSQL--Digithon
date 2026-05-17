@@ -1,13 +1,18 @@
-"""Azure OpenAI async client wrapper with deployment rotation."""
+"""Azure OpenAI async client wrapper with deployment rotation and failover."""
 
 import asyncio
 import itertools
-from openai import AsyncAzureOpenAI
+import logging
+from openai import AsyncAzureOpenAI, APIStatusError, APITimeoutError, APIConnectionError
 
 from app.config import get_settings
 
 _client: AsyncAzureOpenAI | None = None
 _deployment_cycle = None
+_logger = logging.getLogger(__name__)
+
+# Transient HTTP status codes that warrant retry on another deployment
+_RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 
 
 def _get_client() -> AsyncAzureOpenAI:
@@ -31,65 +36,62 @@ def _next_deployment() -> str:
     return next(_deployment_cycle)
 
 
+async def _call_with_failover(messages, temperature, max_tokens, response_format=None):
+    """Call completions with failover across deployments on transient errors."""
+    settings = get_settings()
+    num_deployments = len(settings.azure_openai_deployments)
+    client = _get_client()
+    last_error = None
+
+    for _ in range(num_deployments):
+        deployment = _next_deployment()
+        kwargs = dict(model=deployment, messages=messages, temperature=temperature, max_tokens=max_tokens)
+        if response_format:
+            kwargs["response_format"] = response_format
+        try:
+            return await client.chat.completions.create(**kwargs)
+        except APIStatusError as e:
+            if e.status_code in _RETRYABLE_STATUS:
+                _logger.warning("Deployment %s returned %s, trying next", deployment, e.status_code)
+                last_error = e
+                continue
+            raise
+        except (APITimeoutError, APIConnectionError) as e:
+            _logger.warning("Deployment %s timed out / connection error, trying next", deployment)
+            last_error = e
+            continue
+
+    raise last_error  # All deployments exhausted
+
+
 async def generate_sql(system_prompt: str, user_prompt: str, temperature: float = 0.1) -> str:
     """Generate SQL from a system+user prompt pair. Returns raw SQL string."""
-    client = _get_client()
-    deployment = _next_deployment()
-
-    response = await client.chat.completions.create(
-        model=deployment,
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ],
-        temperature=temperature,
-        max_tokens=2000,
+    response = await _call_with_failover(
+        messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
+        temperature=temperature, max_tokens=2000,
     )
-
     content = response.choices[0].message.content.strip()
-
-    # Strip markdown code fences if present
     if content.startswith("```"):
         lines = content.split("\n")
-        # Remove first and last lines (```sql and ```)
         lines = [l for l in lines if not l.strip().startswith("```")]
         content = "\n".join(lines).strip()
-
     return content
 
 
 async def generate_narrative(system_prompt: str, evidence_text: str, temperature: float = 0.3) -> str:
     """Generate a human-readable narrative from evidence."""
-    client = _get_client()
-    deployment = _next_deployment()
-
-    response = await client.chat.completions.create(
-        model=deployment,
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": evidence_text},
-        ],
-        temperature=temperature,
-        max_tokens=1500,
+    response = await _call_with_failover(
+        messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": evidence_text}],
+        temperature=temperature, max_tokens=1500,
     )
-
     return response.choices[0].message.content.strip()
 
 
 async def generate_json(system_prompt: str, user_prompt: str, temperature: float = 0.1) -> str:
     """Generate a JSON response from a system+user prompt pair."""
-    client = _get_client()
-    deployment = _next_deployment()
-
-    response = await client.chat.completions.create(
-        model=deployment,
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ],
-        temperature=temperature,
-        max_tokens=2000,
+    response = await _call_with_failover(
+        messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
+        temperature=temperature, max_tokens=2000,
         response_format={"type": "json_object"},
     )
-
     return response.choices[0].message.content.strip()

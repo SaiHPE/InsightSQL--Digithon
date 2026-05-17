@@ -28,14 +28,15 @@ async def generate_rca(pool: asyncpg.Pool, incident_id: str) -> dict:
             incident_id,
         )
 
-        # Get recent events for context
+        # Get events scoped to the incident's time window
         events = await conn.fetch(
             """SELECT resource_id, severity, event_type, event_ts, summary
                FROM ops.events_norm
-               WHERE event_ts >= now() - interval '30 minutes'
+               WHERE event_ts >= $1
                  AND severity IN ('critical', 'warning')
                ORDER BY event_ts DESC
-               LIMIT 20"""
+               LIMIT 20""",
+            incident["started_at"],
         )
 
     # Format evidence for prompt

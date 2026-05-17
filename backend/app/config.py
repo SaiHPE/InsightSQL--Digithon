@@ -5,8 +5,8 @@ from functools import lru_cache
 class Settings(BaseSettings):
     """Application settings loaded from environment variables / .env file."""
 
-    # Database
-    database_url: str = "postgresql://insightsql:insightsql_hpe@10.25.69.114:5432/insightsql"
+    # Database — Required: set via DATABASE_URL environment variable
+    database_url: str = ""
 
     # Azure OpenAI
     azure_openai_endpoint: str = ""
@@ -21,6 +21,9 @@ class Settings(BaseSettings):
         "gpt-5.4-mini-hackathon3",
         "gpt-5.4-mini-hackathon4",
     ]
+
+    # Webhook authentication
+    webhook_api_key: str = ""
 
     # App
     app_name: str = "InsightSQL"

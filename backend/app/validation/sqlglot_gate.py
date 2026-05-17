@@ -4,6 +4,9 @@ from dataclasses import dataclass
 import sqlglot
 from sqlglot import exp
 
+# Only allow queries against tables in the ops schema
+ALLOWED_SCHEMAS = {"ops"}
+
 
 @dataclass
 class ValidationResult:
@@ -14,7 +17,7 @@ class ValidationResult:
 
 
 def validate_sql(sql_text: str) -> ValidationResult:
-    """Parse SQL with SQLGlot, reject non-SELECT statements, extract referenced tables."""
+    """Parse SQL with SQLGlot, reject non-SELECT statements, extract and enforce referenced tables."""
     try:
         parsed = sqlglot.parse(sql_text, dialect="postgres")
     except sqlglot.errors.ParseError as e:
@@ -38,12 +41,23 @@ def validate_sql(sql_text: str) -> ValidationResult:
             statement_type=stmt_type,
         )
 
-    # Extract referenced tables
+    # Extract referenced tables and enforce schema allowlist
     tables = []
     for table in statement.find_all(exp.Table):
         table_name = table.name
-        if table.db:
-            table_name = f"{table.db}.{table_name}"
+        schema = table.db or None
+        if schema:
+            table_name = f"{schema}.{table_name}"
+
+        # Reject tables outside the allowed schemas
+        if schema and schema not in ALLOWED_SCHEMAS:
+            return ValidationResult(
+                valid=False,
+                error=f"Table '{table_name}' is outside allowed schemas {ALLOWED_SCHEMAS}",
+                tables=[table_name],
+                statement_type="SELECT",
+            )
+        # If no schema specified, it could be a CTE alias or implicit public — allow cautiously
         tables.append(table_name)
 
     return ValidationResult(
@@ -61,7 +75,19 @@ def extract_columns(sql_text: str) -> list[str]:
         return []
 
     columns = []
-    for expr in parsed.find_all(exp.Alias):
-        columns.append(expr.alias)
+    select_node = parsed.find(exp.Select)
+    if not select_node:
+        return columns
+
+    for expr in select_node.expressions:
+        if isinstance(expr, exp.Alias):
+            columns.append(expr.alias)
+        elif isinstance(expr, exp.Column):
+            columns.append(expr.name)
+        elif hasattr(expr, "name") and expr.name:
+            columns.append(expr.name)
+        else:
+            # Fallback: use the SQL representation
+            columns.append(str(expr))
 
     return columns

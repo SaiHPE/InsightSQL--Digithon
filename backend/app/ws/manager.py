@@ -3,7 +3,7 @@
 import json
 import asyncio
 from datetime import datetime, timezone
-from fastapi import WebSocket
+from fastapi import WebSocket, WebSocketDisconnect
 
 
 class ConnectionManager:
@@ -32,10 +32,10 @@ class ConnectionManager:
         message_json = json.dumps(message, default=str)
 
         disconnected = []
-        for connection in self.active_connections:
+        for connection in list(self.active_connections):
             try:
                 await connection.send_text(message_json)
-            except Exception:
+            except (WebSocketDisconnect, RuntimeError):
                 disconnected.append(connection)
 
         for conn in disconnected:

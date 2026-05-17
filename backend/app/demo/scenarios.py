@@ -270,30 +270,31 @@ async def incident_3_sql_self_heal(pool: asyncpg.Pool):
     })
     await asyncio.sleep(3)
 
-    # Break the panel
+    # Break the panel — atomic transaction
     async with pool.acquire() as conn:
-        active = await conn.fetchrow(
-            "SELECT version_no, sql_text FROM ops.panel_query_versions WHERE panel_id = $1 AND is_active = true",
-            panel_id,
-        )
-        if not active:
-            return
+        async with conn.transaction():
+            active = await conn.fetchrow(
+                "SELECT version_no, sql_text FROM ops.panel_query_versions WHERE panel_id = $1 AND is_active = true",
+                panel_id,
+            )
+            if not active:
+                return
 
-        broken_sql = active["sql_text"].replace("display_name", "resource_name")
-        new_version = active["version_no"] + 1
+            broken_sql = active["sql_text"].replace("display_name", "resource_name")
+            new_version = active["version_no"] + 1
 
-        await conn.execute("UPDATE ops.panel_query_versions SET is_active = false WHERE panel_id = $1", panel_id)
-        await conn.execute(
-            """INSERT INTO ops.panel_query_versions (panel_id, version_no, sql_text, generated_by, is_active)
-               VALUES ($1, $2, $3, 'human', true)""",
-            panel_id, new_version, broken_sql,
-        )
-        await conn.execute("UPDATE ops.dashboard_panels SET status = 'failed' WHERE panel_id = $1", panel_id)
-        await conn.execute(
-            """INSERT INTO ops.query_failures (panel_id, error_text, bad_sql)
-               VALUES ($1, 'column \"resource_name\" does not exist', $2)""",
-            panel_id, broken_sql,
-        )
+            await conn.execute("UPDATE ops.panel_query_versions SET is_active = false WHERE panel_id = $1", panel_id)
+            await conn.execute(
+                """INSERT INTO ops.panel_query_versions (panel_id, version_no, sql_text, generated_by, is_active)
+                   VALUES ($1, $2, $3, 'human', true)""",
+                panel_id, new_version, broken_sql,
+            )
+            await conn.execute("UPDATE ops.dashboard_panels SET status = 'failed' WHERE panel_id = $1", panel_id)
+            await conn.execute(
+                """INSERT INTO ops.query_failures (panel_id, error_text, bad_sql)
+                   VALUES ($1, 'column \"resource_name\" does not exist', $2)""",
+                panel_id, broken_sql,
+            )
 
     await manager.broadcast("panel_failed", {
         "panel_id": panel_id, "panel_name": "Top Hosts by CPU Load",

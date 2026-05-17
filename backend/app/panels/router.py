@@ -1,7 +1,8 @@
 """Dashboard panel management and self-healing endpoints."""
 
 import json
-from fastapi import APIRouter
+import asyncpg
+from fastapi import APIRouter, HTTPException
 
 from app.db.engine import get_pool
 from app.ws.manager import manager
@@ -65,7 +66,7 @@ async def execute_panel(panel_id: str):
             panel_id,
         )
         if not row:
-            return {"error": "No active query for panel"}
+            raise HTTPException(status_code=404, detail="No active query for panel")
 
         try:
             async with conn.transaction():
@@ -77,7 +78,7 @@ async def execute_panel(panel_id: str):
                 "rows": [dict(r) for r in results],
                 "row_count": len(results),
             }
-        except Exception as e:
+        except asyncpg.PostgresError as e:
             # Record failure
             await conn.execute(
                 """INSERT INTO ops.query_failures (panel_id, error_text, bad_sql)
@@ -118,7 +119,7 @@ async def break_panel(panel_id: str):
             panel_id,
         )
         if not row:
-            return {"error": "No active query found"}
+            raise HTTPException(status_code=404, detail="No active query found")
 
         # Break it by replacing display_name with resource_name
         broken_sql = row["sql_text"].replace("display_name", "resource_name")
@@ -126,25 +127,25 @@ async def break_panel(panel_id: str):
             # Try another break pattern
             broken_sql = row["sql_text"].replace("resource_id", "resource_uuid")
 
-        # Insert broken version
         new_version = row["version_no"] + 1
-        await conn.execute(
-            """INSERT INTO ops.panel_query_versions
-               (panel_id, version_no, sql_text, generated_by, is_active)
-               VALUES ($1, $2, $3, 'human', true)""",
-            panel_id, new_version, broken_sql,
-        )
-        # Deactivate old version
-        await conn.execute(
-            """UPDATE ops.panel_query_versions SET is_active = false
-               WHERE panel_id = $1 AND version_no = $2""",
-            panel_id, row["version_no"],
-        )
-        # Mark panel as failed
-        await conn.execute(
-            "UPDATE ops.dashboard_panels SET status = 'failed' WHERE panel_id = $1",
-            panel_id,
-        )
+
+        # Atomic version switch — deactivate old, insert broken, update panel in one transaction
+        async with conn.transaction():
+            await conn.execute(
+                """UPDATE ops.panel_query_versions SET is_active = false
+                   WHERE panel_id = $1 AND version_no = $2""",
+                panel_id, row["version_no"],
+            )
+            await conn.execute(
+                """INSERT INTO ops.panel_query_versions
+                   (panel_id, version_no, sql_text, generated_by, is_active)
+                   VALUES ($1, $2, $3, 'human', true)""",
+                panel_id, new_version, broken_sql,
+            )
+            await conn.execute(
+                "UPDATE ops.dashboard_panels SET status = 'failed' WHERE panel_id = $1",
+                panel_id,
+            )
 
     await manager.broadcast("panel_failed", {
         "panel_id": panel_id,

@@ -1,6 +1,7 @@
 """InsightSQL for HPE GreenLake SAP Operations - FastAPI Application."""
 
 import asyncio
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -38,10 +39,11 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS - allow React dev server
+# CORS - use explicit origins (wildcard + credentials violates CORS spec)
+_cors_origins = os.environ.get("CORS_ORIGINS", "http://localhost:5173").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[o.strip() for o in _cors_origins],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -67,6 +69,8 @@ async def websocket_endpoint(websocket: WebSocket):
             if data == "ping":
                 await manager.send_personal(websocket, "pong", {})
     except WebSocketDisconnect:
+        pass
+    finally:
         manager.disconnect(websocket)
 
 
