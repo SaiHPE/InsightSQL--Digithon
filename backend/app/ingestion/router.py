@@ -1,5 +1,6 @@
 """Webhook ingestion endpoints."""
 
+import json
 import hmac
 import hashlib
 from fastapi import APIRouter, Request, HTTPException
@@ -22,11 +23,19 @@ def _verify_webhook(request: Request):
         raise HTTPException(status_code=401, detail="Invalid or missing API key")
 
 
+async def _read_json(request: Request) -> dict:
+    """Parse JSON body, returning 400 for malformed payloads."""
+    try:
+        return await request.json()
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Malformed JSON body")
+
+
 @router.post("/alerts")
 async def receive_alert(request: Request):
     """Receive a Grafana-style alert webhook payload."""
     _verify_webhook(request)
-    payload = await request.json()
+    payload = await _read_json(request)
     pool = await get_pool()
 
     result = normalize_alert(pool, payload)
@@ -47,7 +56,7 @@ async def receive_alert(request: Request):
 async def receive_metrics(request: Request):
     """Receive HPE storage/compute metrics payload."""
     _verify_webhook(request)
-    payload = await request.json()
+    payload = await _read_json(request)
     pool = await get_pool()
 
     count = await normalize_metrics(pool, payload)
@@ -66,7 +75,7 @@ async def receive_metrics(request: Request):
 async def receive_compute_event(request: Request):
     """Receive HPE compute health event."""
     _verify_webhook(request)
-    payload = await request.json()
+    payload = await _read_json(request)
     pool = await get_pool()
 
     event_id = await normalize_compute_event(pool, payload)

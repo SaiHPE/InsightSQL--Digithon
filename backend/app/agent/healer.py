@@ -45,10 +45,14 @@ async def heal_panel(pool: asyncpg.Pool, panel_id: str) -> dict:
     except Exception:
         expected_columns = []
 
-    # Step 2: Get error
+    # Step 2: Get error — validate broken SQL first, then EXPLAIN
     await manager.broadcast("panel_healing", {"panel_id": panel_id, "step": "diagnosing", "status": "running", "detail": "Running EXPLAIN to capture error..."})
-    explain_result = await explain_query(pool, broken_sql)
-    error_text = explain_result.error or "Unknown error"
+    broken_validation = validate_sql(broken_sql)
+    if not broken_validation.valid:
+        error_text = broken_validation.error or "Unknown AST error"
+    else:
+        explain_result = await explain_query(pool, broken_sql)
+        error_text = explain_result.error or "Unknown error"
     await manager.broadcast("panel_healing", {"panel_id": panel_id, "step": "diagnosing", "status": "complete", "detail": f"Error: {error_text}", "elapsed": round(time.time() - start_time, 2)})
 
     # Step 3: Schema map
@@ -96,10 +100,14 @@ async def heal_panel(pool: asyncpg.Pool, panel_id: str) -> dict:
     async with pool.acquire() as conn:
         async with conn.transaction():
             await conn.fetchrow("SELECT panel_id FROM ops.dashboard_panels WHERE panel_id = $1 FOR UPDATE", panel_id)
+            # Re-check active version to avoid promoting a stale fix
+            current_active = await conn.fetchrow("SELECT version_no, sql_text FROM ops.panel_query_versions WHERE panel_id = $1 AND is_active = true FOR UPDATE", panel_id)
+            if not current_active or current_active["version_no"] != active_query["version_no"]:
+                return {"error": f"Panel {panel_id} changed while healing; retry"}
             max_version = await conn.fetchval("SELECT COALESCE(MAX(version_no), 0) FROM ops.panel_query_versions WHERE panel_id = $1", panel_id)
             new_version = max_version + 1
             await conn.execute("UPDATE ops.panel_query_versions SET is_active = false WHERE panel_id = $1", panel_id)
-            await conn.execute("INSERT INTO ops.panel_query_versions (panel_id, version_no, sql_text, generated_by, is_active, healed_from_version) VALUES ($1, $2, $3, 'healer', true, $4)", panel_id, new_version, healed_sql, active_query["version_no"])
+            await conn.execute("INSERT INTO ops.panel_query_versions (panel_id, version_no, sql_text, generated_by, is_active, healed_from_version) VALUES ($1, $2, $3, 'healer', true, $4)", panel_id, new_version, healed_sql, current_active["version_no"])
             await conn.execute("UPDATE ops.dashboard_panels SET status = 'healed' WHERE panel_id = $1", panel_id)
 
     result = {"panel_id": panel_id, "status": "healed", "old_sql": broken_sql, "new_sql": healed_sql, "error_fixed": error_text, "old_version": active_query["version_no"], "new_version": new_version, "shadow_rows": shadow_result.row_count, "elapsed": round(time.time() - start_time, 2)}

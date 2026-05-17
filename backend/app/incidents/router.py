@@ -63,8 +63,9 @@ async def ask_question(incident_id: str, body: dict):
     from app.agent.text_to_sql import investigate
 
     question = body.get("question", "")
-    if not question:
+    if not isinstance(question, str) or not question.strip():
         raise HTTPException(status_code=422, detail="question is required")
+    question = question.strip()
 
     pool = await get_pool()
     result = await investigate(pool, incident_id, question)

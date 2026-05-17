@@ -40,6 +40,8 @@ async def _call_with_failover(messages, temperature, max_tokens, response_format
     """Call completions with failover across deployments on transient errors."""
     settings = get_settings()
     num_deployments = len(settings.azure_openai_deployments)
+    if num_deployments == 0:
+        raise ValueError("No Azure OpenAI deployments configured in azure_openai_deployments")
     client = _get_client()
     last_error = None
 
@@ -73,7 +75,7 @@ async def generate_sql(system_prompt: str, user_prompt: str, temperature: float 
     content = response.choices[0].message.content.strip()
     if content.startswith("```"):
         lines = content.split("\n")
-        lines = [l for l in lines if not l.strip().startswith("```")]
+        lines = [line for line in lines if not line.strip().startswith("```")]
         content = "\n".join(lines).strip()
     return content
 

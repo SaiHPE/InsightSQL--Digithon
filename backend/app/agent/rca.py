@@ -33,10 +33,12 @@ async def generate_rca(pool: asyncpg.Pool, incident_id: str) -> dict:
             """SELECT resource_id, severity, event_type, event_ts, summary
                FROM ops.events_norm
                WHERE event_ts >= $1
+                 AND event_ts <= COALESCE($2, NOW())
                  AND severity IN ('critical', 'warning')
                ORDER BY event_ts DESC
                LIMIT 20""",
             incident["started_at"],
+            incident["resolved_at"],
         )
 
     # Format evidence for prompt

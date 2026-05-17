@@ -392,7 +392,7 @@ body {
   color: var(--t2);
   overflow-x: auto;
   white-space: pre-wrap;
-  word-break: break-word;
+  overflow-wrap: anywhere;
   max-height: 120px;
   margin-bottom: 6px;
 }
