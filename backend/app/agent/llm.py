@@ -8,6 +8,7 @@ from openai import AsyncAzureOpenAI, APIStatusError, APITimeoutError, APIConnect
 from app.config import get_settings
 
 _client: AsyncAzureOpenAI | None = None
+_client_lock = asyncio.Lock()
 _deployment_cycle = None
 _logger = logging.getLogger(__name__)
 
@@ -15,16 +16,49 @@ _logger = logging.getLogger(__name__)
 _RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 
 
-def _get_client() -> AsyncAzureOpenAI:
+async def _get_client() -> AsyncAzureOpenAI:
     global _client
-    if _client is None:
-        settings = get_settings()
-        _client = AsyncAzureOpenAI(
-            azure_endpoint=settings.azure_openai_endpoint,
-            api_key=settings.azure_openai_key,
-            api_version=settings.azure_openai_api_version,
-        )
+    async with _client_lock:
+        if _client is None:
+            import os
+            import httpx
+            import ssl
+
+            settings = get_settings()
+
+            # Build SSL context that trusts both system CAs and corporate proxy CA
+            ssl_cert_file = os.environ.get("SSL_CERT_FILE")
+            if ssl_cert_file:
+                if not os.path.isfile(ssl_cert_file):
+                    _logger.error("SSL_CERT_FILE is set but does not exist: %s", ssl_cert_file)
+                    raise FileNotFoundError(f"SSL_CERT_FILE is set but file does not exist: {ssl_cert_file}")
+                try:
+                    ssl_ctx = ssl.create_default_context()  # loads system default CAs
+                    ssl_ctx.load_verify_locations(cafile=ssl_cert_file)  # add corporate CA on top
+                except Exception as e:
+                    _logger.error("Failed to load SSL_CERT_FILE %s: %s", ssl_cert_file, e)
+                    raise
+                http_client = httpx.AsyncClient(verify=ssl_ctx)
+                _logger.info("Using custom CA bundle: %s", ssl_cert_file)
+            else:
+                http_client = httpx.AsyncClient()
+
+            _client = AsyncAzureOpenAI(
+                azure_endpoint=settings.azure_openai_endpoint,
+                api_key=settings.azure_openai_key,
+                api_version=settings.azure_openai_api_version,
+                http_client=http_client,
+            )
     return _client
+
+
+async def close_client() -> None:
+    """Close the OpenAI client and its underlying httpx transport."""
+    global _client
+    async with _client_lock:
+        if _client is not None:
+            await _client.close()
+            _client = None
 
 
 def _next_deployment() -> str:
@@ -36,18 +70,18 @@ def _next_deployment() -> str:
     return next(_deployment_cycle)
 
 
-async def _call_with_failover(messages, temperature, max_tokens, response_format=None):
+async def _call_with_failover(messages, temperature, max_completion_tokens, response_format=None):
     """Call completions with failover across deployments on transient errors."""
     settings = get_settings()
     num_deployments = len(settings.azure_openai_deployments)
     if num_deployments == 0:
         raise ValueError("No Azure OpenAI deployments configured in azure_openai_deployments")
-    client = _get_client()
+    client = await _get_client()
     last_error = None
 
     for _ in range(num_deployments):
         deployment = _next_deployment()
-        kwargs = dict(model=deployment, messages=messages, temperature=temperature, max_tokens=max_tokens)
+        kwargs = dict(model=deployment, messages=messages, temperature=temperature, max_completion_tokens=max_completion_tokens)
         if response_format:
             kwargs["response_format"] = response_format
         try:
@@ -70,7 +104,7 @@ async def generate_sql(system_prompt: str, user_prompt: str, temperature: float 
     """Generate SQL from a system+user prompt pair. Returns raw SQL string."""
     response = await _call_with_failover(
         messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
-        temperature=temperature, max_tokens=2000,
+        temperature=temperature, max_completion_tokens=2000,
     )
     content = response.choices[0].message.content.strip()
     if content.startswith("```"):
@@ -84,7 +118,7 @@ async def generate_narrative(system_prompt: str, evidence_text: str, temperature
     """Generate a human-readable narrative from evidence."""
     response = await _call_with_failover(
         messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": evidence_text}],
-        temperature=temperature, max_tokens=1500,
+        temperature=temperature, max_completion_tokens=1500,
     )
     return response.choices[0].message.content.strip()
 
@@ -93,7 +127,7 @@ async def generate_json(system_prompt: str, user_prompt: str, temperature: float
     """Generate a JSON response from a system+user prompt pair."""
     response = await _call_with_failover(
         messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
-        temperature=temperature, max_tokens=2000,
+        temperature=temperature, max_completion_tokens=2000,
         response_format={"type": "json_object"},
     )
     return response.choices[0].message.content.strip()

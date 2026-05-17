@@ -4,20 +4,36 @@ import { Play, RotateCcw, ChevronDown, ChevronUp } from 'lucide-react';
 export default function DemoControl({ demo }) {
   const [open, setOpen] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const apiBase = import.meta.env.VITE_API_URL || window.location.origin;
 
   const start = async () => {
     setLoading(true);
-    try { await fetch('http://localhost:8000/api/demo/start', { method: 'POST' }); } catch {}
-    setLoading(false);
+    setError(null);
+    try {
+      const res = await fetch(`${apiBase}/api/demo/start`, { method: 'POST' });
+      if (!res.ok) throw new Error(`Demo start failed: ${res.status}`);
+    } catch (e) {
+      console.error('[Demo]', e);
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const reset = async () => {
     setLoading(true);
+    setError(null);
     try {
-      await fetch('http://localhost:8000/api/demo/reset', { method: 'POST' });
+      const res = await fetch(`${apiBase}/api/demo/reset`, { method: 'POST' });
+      if (!res.ok) throw new Error(`Demo reset failed: ${res.status}`);
       window.location.reload();
-    } catch {}
-    setLoading(false);
+    } catch (e) {
+      console.error('[Demo]', e);
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const running = demo.phase !== 'idle' && demo.phase !== 'complete';
@@ -43,6 +59,7 @@ export default function DemoControl({ demo }) {
               <div className="demo-talk">"{demo.talkingPoint}"</div>
             </>
           )}
+          {error && <div style={{ color: '#ff4d4f', fontSize: 11, marginTop: 4 }}>{error}</div>}
         </div>
       )}
       <button className="btn btn-ghost btn-round" onClick={() => setOpen(!open)}>

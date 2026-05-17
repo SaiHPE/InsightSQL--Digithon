@@ -40,7 +40,7 @@ InsightSQL is a **live operations dashboard** for HPE GreenLake-hosted SAP envir
                        │
           ┌────────────┴────────────┐
           │  PostgreSQL 16          │
-          │  RHEL VM (10.25.69.114) │
+          │  RHEL VM (db-host)      │
           │  11 tables, ops schema  │
           └─────────────────────────┘
 ```
@@ -97,7 +97,7 @@ curl -X POST http://localhost:8000/api/demo/start
 AZURE_OPENAI_ENDPOINT=https://oai-gopoc-prod-northcentralus-001.openai.azure.com/
 AZURE_OPENAI_KEY=your-key-here
 AZURE_OPENAI_API_VERSION=2024-12-01-preview
-DATABASE_URL=postgresql://insightsql:insightsql_hpe@10.25.69.114:5432/insightsql
+DATABASE_URL=postgresql://<user>:<password>@<db-host>:5432/insightsql
 ```
 
 ## API Endpoints
