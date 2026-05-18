@@ -1,4 +1,5 @@
 from pydantic_settings import BaseSettings
+from pydantic import model_validator
 from functools import lru_cache
 
 
@@ -21,6 +22,20 @@ class Settings(BaseSettings):
         "gpt-5.4-mini-hackathon3",
         "gpt-5.4-mini-hackathon4",
     ]
+
+    # Ollama Fallback
+    ollama_fallback_enabled: bool = False
+    ollama_endpoint: str = ""
+    ollama_model: str = ""
+
+    @model_validator(mode='after')
+    def validate_ollama_config(self) -> 'Settings':
+        if self.ollama_fallback_enabled:
+            if not self.ollama_endpoint:
+                raise ValueError("ollama_endpoint must be set when ollama_fallback_enabled is True")
+            if not self.ollama_model:
+                raise ValueError("ollama_model must be set when ollama_fallback_enabled is True")
+        return self
 
     # Webhook authentication
     webhook_api_key: str = ""
