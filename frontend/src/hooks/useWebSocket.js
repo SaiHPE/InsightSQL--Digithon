@@ -8,6 +8,7 @@ const RECONNECT_DELAYS = [1000, 2000, 4000, 8000, 10000];
 export default function useWebSocket() {
   const [isConnected, setIsConnected] = useState(false);
   const [lastMessage, setLastMessage] = useState(null);
+  const [retryCount, setRetryCount] = useState(0);
   const wsRef = useRef(null);
   const retriesRef = useRef(0);
   const mountedRef = useRef(true);
@@ -21,6 +22,7 @@ export default function useWebSocket() {
     ws.onopen = () => {
       setIsConnected(true);
       retriesRef.current = 0;
+      setRetryCount(0);
     };
 
     ws.onmessage = (event) => {
@@ -37,6 +39,7 @@ export default function useWebSocket() {
       if (mountedRef.current) {
         const delay = RECONNECT_DELAYS[Math.min(retriesRef.current, RECONNECT_DELAYS.length - 1)];
         retriesRef.current++;
+        setRetryCount(retriesRef.current);
         setTimeout(connect, delay);
       }
     };
@@ -63,5 +66,5 @@ export default function useWebSocket() {
     }
   }, []);
 
-  return { isConnected, lastMessage, sendMessage, retryCount: retriesRef.current };
+  return { isConnected, lastMessage, sendMessage, retryCount };
 }

@@ -75,7 +75,7 @@ export default function PanelHealth({ panels = [], healing }) {
       </div>
       <div className="section-body">
         {/* Only show full grid when there's something interesting */}
-        {(hasActivity || panels.length === 0) && (
+        {hasActivity && (
           <div className="panel-grid">
             {panels.map((p, idx) => (
               <div key={p.panel_id} className={`ptile ${p.status === 'active' ? '' : p.status || ''} anim-in delay-${idx + 1}`}>

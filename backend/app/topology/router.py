@@ -60,7 +60,8 @@ async def get_metrics_baseline():
             """SELECT metric_ts, resource_id, metric_name, metric_value
                FROM ops.metrics_norm
                WHERE metric_ts >= now() - interval '2 hours'
-               ORDER BY metric_ts"""
+               ORDER BY metric_ts
+               LIMIT 5000"""
         )
 
     # Group into timeline format the frontend expects

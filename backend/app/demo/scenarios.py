@@ -358,7 +358,7 @@ async def incident_3_sql_self_heal(pool: asyncpg.Pool):
 async def incident_4_capacity_drift(pool: asyncpg.Pool):
     """Incident 4: GreenLake capacity forecast breach — storage trending full."""
     now = datetime.now(timezone.utc)
-    incident_id = "INC-003"
+    incident_id = "INC-004"
 
     await manager.broadcast("demo_phase", {
         "phase": "incident_4", "phase_number": 4,
