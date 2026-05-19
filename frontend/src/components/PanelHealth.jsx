@@ -1,10 +1,17 @@
-import { Check, X, Loader2, Wrench, AlertTriangle } from 'lucide-react';
+import { Check, X, Loader2, Wrench, AlertTriangle, HelpCircle } from 'lucide-react';
 
-const ICON = { 
-  active: <Check size={14} aria-label="Active" />, 
-  failed: <X size={14} aria-label="Failed" />, 
-  healing: <Loader2 size={14} className="spinner" aria-label="Healing" />, 
-  healed: <Wrench size={14} aria-label="Healed" /> 
+const ICON = {
+  active: <Check size={14} aria-label="Active" />,
+  failed: <X size={14} aria-label="Failed" />,
+  healing: <Loader2 size={14} className="spinner" aria-label="Healing" />,
+  healed: <Wrench size={14} aria-label="Healed" />,
+};
+
+const STATUS_LABEL = {
+  active: (p) => `v${p.version_no || 1} active`,
+  failed: () => <span style={{ color: 'var(--status-critical)' }}>FAILED</span>,
+  healing: () => <span style={{ color: 'var(--status-info)' }}>Healing…</span>,
+  healed: () => <span style={{ color: 'var(--hpe-green)' }}>Healed</span>,
 };
 
 export default function PanelHealth({ panels = [], healing }) {
@@ -21,13 +28,13 @@ export default function PanelHealth({ panels = [], healing }) {
           {panels.map((p, idx) => (
             <div key={p.panel_id} className={`ptile ${p.status === 'active' ? '' : p.status || ''} anim-in delay-${idx + 1}`}>
               <div className="ptile-name">
-                {ICON[p.status] || ICON.active} {p.panel_name}
+                {ICON[p.status] || <HelpCircle size={14} aria-label="Unknown" />} {p.panel_name}
               </div>
               <div className="ptile-status">
-                {p.status === 'active' && `v${p.version_no || 1} active`}
-                {p.status === 'failed' && <span style={{ color: 'var(--status-critical)' }}>FAILED</span>}
-                {p.status === 'healing' && <span style={{ color: 'var(--status-info)' }}>Healing…</span>}
-                {p.status === 'healed' && <span style={{ color: 'var(--hpe-green)' }}>Healed</span>}
+                {STATUS_LABEL[p.status]
+                  ? STATUS_LABEL[p.status](p)
+                  : <span style={{ color: 'var(--text-weak)' }}>{p.status || 'Unknown'}</span>
+                }
               </div>
             </div>
           ))}

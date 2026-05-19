@@ -1,11 +1,20 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { Menu, X } from 'lucide-react';
+
+const NAV_ITEMS = [
+  { label: 'Dashboard', id: 'dashboard', active: true },
+  { label: 'Incidents', id: 'incidents' },
+  { label: 'Settings', id: 'settings' },
+];
 
 export default function Header({ isConnected }) {
+  const [mobileOpen, setMobileOpen] = useState(false);
+
   return (
     <div className="header-wrapper">
       {/* HPE Distinctive Brand Asset: Element Bar */}
       <div className="hpe-green-bar" />
-      
+
       <header className="header">
         <div className="header-brand">
           <div className="header-mark">
@@ -20,12 +29,30 @@ export default function Header({ isConnected }) {
           </div>
         </div>
 
-        {/* Global Navigation Pattern */}
-        <nav className="header-nav" aria-label="Global Navigation">
-          <a href="#" className="header-nav-link active">Dashboard</a>
-          <a href="#" className="header-nav-link">Incidents</a>
-          <a href="#" className="header-nav-link">Settings</a>
+        {/* Desktop Navigation */}
+        <nav className="header-nav header-nav-desktop" aria-label="Global Navigation">
+          {NAV_ITEMS.map(item => (
+            <button
+              key={item.id}
+              type="button"
+              className={`header-nav-link ${item.active ? 'active' : ''}`}
+              aria-current={item.active ? 'page' : undefined}
+            >
+              {item.label}
+            </button>
+          ))}
         </nav>
+
+        {/* Mobile menu toggle */}
+        <button
+          type="button"
+          className="btn btn-ghost header-mobile-toggle"
+          onClick={() => setMobileOpen(!mobileOpen)}
+          aria-label={mobileOpen ? 'Close navigation menu' : 'Open navigation menu'}
+          aria-expanded={mobileOpen}
+        >
+          {mobileOpen ? <X size={20} /> : <Menu size={20} />}
+        </button>
 
         <div className="header-status" aria-live="polite">
           <div className="status-indicator">
@@ -34,6 +61,23 @@ export default function Header({ isConnected }) {
           </div>
         </div>
       </header>
+
+      {/* Mobile Navigation Dropdown */}
+      {mobileOpen && (
+        <nav className="header-nav-mobile" aria-label="Mobile Navigation">
+          {NAV_ITEMS.map(item => (
+            <button
+              key={item.id}
+              type="button"
+              className={`header-nav-link ${item.active ? 'active' : ''}`}
+              aria-current={item.active ? 'page' : undefined}
+              onClick={() => setMobileOpen(false)}
+            >
+              {item.label}
+            </button>
+          ))}
+        </nav>
+      )}
     </div>
   );
 }

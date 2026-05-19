@@ -299,7 +299,7 @@ a:hover {
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
-.badge-crit { background: var(--status-critical); color: #fff; }
+.badge-crit { background: var(--status-critical); color: #1a1f2b; }
 .badge-warn { background: var(--status-warning); color: #111; }
 .badge-ok { background: var(--status-ok-bg); color: var(--status-ok); }
 .badge-info { background: var(--status-info-bg); color: var(--status-info); }
@@ -799,7 +799,7 @@ a:hover {
 
 .btn-primary {
   background: var(--hpe-green);
-  color: #fff;
+  color: #1a1f2b;
   border-color: var(--hpe-green);
 }
 .btn-primary:hover:not(:disabled) {
@@ -903,8 +903,25 @@ a:hover {
   .cols-sidebar { grid-template-columns: 1fr; }
   .sql-diff { grid-template-columns: 1fr; }
 }
+/* Mobile menu toggle — hidden on desktop */
+.header-mobile-toggle { display: none; }
+
+/* Mobile nav dropdown */
+.header-nav-mobile {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-front);
+  border-bottom: 1px solid var(--border-weak);
+  padding: var(--space-xxs) var(--space-md);
+}
+.header-nav-mobile .header-nav-link {
+  padding: var(--space-xxs) 0;
+  text-align: left;
+}
+
 @media (max-width: 768px) { /* small */
-  .header-nav { display: none; } /* Hide nav on small */
+  .header-nav-desktop { display: none; }
+  .header-mobile-toggle { display: inline-flex; }
   .kpi-row { grid-template-columns: 1fr; }
   .panel-grid { grid-template-columns: 1fr; }
   .banner { flex-direction: column; align-items: flex-start; gap: var(--space-sm); }

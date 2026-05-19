@@ -1,8 +1,17 @@
-import { MessageSquare, Database, Copy } from 'lucide-react';
+import { useState } from 'react';
+import { MessageSquare, Database, Copy, Check } from 'lucide-react';
 
 export default function EvidencePanel({ evidence }) {
-  const handleCopy = (sql) => {
-    navigator.clipboard.writeText(sql);
+  const [copiedId, setCopiedId] = useState(null);
+
+  const handleCopy = async (sql, id) => {
+    try {
+      await navigator.clipboard.writeText(sql);
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 2000);
+    } catch (err) {
+      console.error('Failed to copy SQL:', err);
+    }
   };
 
   return (
@@ -15,31 +24,35 @@ export default function EvidencePanel({ evidence }) {
         {evidence.length === 0 ? (
           <div className="empty">No evidence collected yet</div>
         ) : (
-          evidence.map((e, i) => (
-            <div key={e.run_id || i} className="evidence-item anim-in">
-              <div className="evidence-q">
-                <MessageSquare size={16} />
-                <span>{e.question}</span>
+          evidence.map((e, i) => {
+            const itemId = e.run_id || i;
+            return (
+              <div key={itemId} className="evidence-item anim-in">
+                <div className="evidence-q">
+                  <MessageSquare size={16} />
+                  <span>{e.question}</span>
+                </div>
+                <div style={{ position: 'relative' }}>
+                  <div className="sql-block">{e.sql_text}</div>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-round"
+                    style={{ position: 'absolute', top: 4, right: 4, width: 28, height: 28, opacity: 0.7 }}
+                    onClick={() => handleCopy(e.sql_text, itemId)}
+                    aria-label="Copy SQL to clipboard"
+                  >
+                    {copiedId === itemId ? <Check size={12} /> : <Copy size={12} />}
+                  </button>
+                </div>
+                <div className="evidence-meta">
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4xs)' }}>
+                    <Database size={12} /> {e.row_count} rows
+                  </span>
+                  {e.elapsed && <span>{e.elapsed}s</span>}
+                </div>
               </div>
-              <div style={{ position: 'relative' }}>
-                <div className="sql-block">{e.sql_text}</div>
-                <button 
-                  className="btn btn-ghost btn-round" 
-                  style={{ position: 'absolute', top: 4, right: 4, width: 28, height: 28, opacity: 0.7 }}
-                  onClick={() => handleCopy(e.sql_text)}
-                  title="Copy SQL"
-                >
-                  <Copy size={12} />
-                </button>
-              </div>
-              <div className="evidence-meta">
-                <span style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4xs)' }}>
-                  <Database size={12} /> {e.row_count} rows
-                </span>
-                {e.elapsed && <span>{e.elapsed}s</span>}
-              </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
     </div>
