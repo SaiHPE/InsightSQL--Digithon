@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Zap, RotateCcw, ChevronDown, ChevronUp, Loader2, Check } from 'lucide-react';
 
 const INCIDENTS = [
@@ -10,11 +10,30 @@ const INCIDENTS = [
 
 export default function DemoControl({ demo }) {
   const [open, setOpen] = useState(true);
-  const [running, setRunning] = useState(null);  // which incident number is running
+  const [running, setRunning] = useState(null);
   const [completed, setCompleted] = useState(new Set());
   const [resetting, setResetting] = useState(false);
   const [error, setError] = useState(null);
   const apiBase = import.meta.env.VITE_API_URL || window.location.origin;
+  const pollRef = useRef(null);
+
+  // Sync completed state from server on mount (handles page refresh mid-demo)
+  useEffect(() => {
+    fetch(`${apiBase}/api/demo/status`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.completed?.length) setCompleted(new Set(data.completed));
+        if (data.running) setRunning(null); // don't try to re-track a running incident
+      })
+      .catch(() => {});
+  }, [apiBase]);
+
+  // Clear polling interval on unmount to prevent memory leak
+  useEffect(() => {
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, []);
 
   const triggerIncident = async (num) => {
     setRunning(num);
@@ -26,12 +45,13 @@ export default function DemoControl({ demo }) {
         throw new Error(body.detail || `Incident ${num} failed: ${res.status}`);
       }
       // Poll until done (check every 2s)
-      const poll = setInterval(async () => {
+      pollRef.current = setInterval(async () => {
         try {
           const status = await fetch(`${apiBase}/api/demo/status`);
           const data = await status.json();
           if (!data.running) {
-            clearInterval(poll);
+            clearInterval(pollRef.current);
+            pollRef.current = null;
             setRunning(null);
             setCompleted(new Set(data.completed || []));
           }
@@ -47,6 +67,7 @@ export default function DemoControl({ demo }) {
   const reset = async () => {
     setResetting(true);
     setError(null);
+    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
     try {
       const res = await fetch(`${apiBase}/api/demo/reset`, { method: 'POST' });
       if (!res.ok) throw new Error(`Reset failed: ${res.status}`);
@@ -92,10 +113,13 @@ export default function DemoControl({ demo }) {
           <button className="btn btn-ghost demo-reset" onClick={reset} disabled={isBusy}>
             <RotateCcw size={14} /> Reset
           </button>
-          {/* Phase info shown during active incident */}
+          {/* Phase info + talking point shown during active incident */}
           {demo.phase !== 'idle' && demo.phase !== 'complete' && (
             <div className="demo-status anim-in">
               <div className="demo-title">{demo.title}</div>
+              {demo.talkingPoint && (
+                <div className="demo-talk">"{demo.talkingPoint}"</div>
+              )}
             </div>
           )}
           {error && <div style={{ color: 'var(--status-critical)', fontSize: 12, marginTop: 'var(--space-xxs)' }}>{error}</div>}

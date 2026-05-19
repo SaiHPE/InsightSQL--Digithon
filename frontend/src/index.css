@@ -252,7 +252,6 @@ a:hover {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  scroll-behavior: smooth;
 }
 
 .main-inner {
@@ -935,6 +934,14 @@ a:hover {
   display: flex;
   align-items: center;
   gap: var(--space-xs);
+}
+
+.demo-talk {
+  font-size: 12px;
+  color: var(--text-default);
+  font-style: italic;
+  line-height: 1.4;
+  margin-top: var(--space-4xs);
 }
 
 /* === BUTTONS (HPE Primary/Secondary/Default/Ghost) === */

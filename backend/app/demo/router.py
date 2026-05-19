@@ -39,7 +39,10 @@ _INCIDENTS = {
 async def trigger_incident(incident_num: int):
     """Trigger a single incident by number (1-4)."""
     if incident_num not in _INCIDENTS:
-        raise HTTPException(status_code=400, detail=f"Invalid incident number: {incident_num}. Must be 1-4.")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid incident number: {incident_num}. Must be 1-4.",
+        )
 
     async with _demo_lock:
         if _demo_state["running"]:

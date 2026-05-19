@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import useWebSocket from './hooks/useWebSocket';
 import useDashboardState from './hooks/useDashboardState';
 import Header from './components/Header';
@@ -23,50 +23,50 @@ export default function App() {
   // Track which sections have fresh data for glow effect
   const [glowing, setGlowing] = useState({});
   const glowTimers = useRef({});
+  const lastGlowedRef = useRef(null);
 
   useEffect(() => { loadInitialData(); }, [loadInitialData]);
   useEffect(() => { if (lastMessage) handleMessage(lastMessage); }, [lastMessage, handleMessage]);
 
-  // Glow a section when it gets new data, then fade after 2s
-  const triggerGlow = (sectionId) => {
+  // Stable reference — no deps since it only uses refs and setState
+  const triggerGlow = useCallback((sectionId) => {
+    lastGlowedRef.current = sectionId;
     setGlowing(prev => ({ ...prev, [sectionId]: true }));
     clearTimeout(glowTimers.current[sectionId]);
     glowTimers.current[sectionId] = setTimeout(() => {
       setGlowing(prev => ({ ...prev, [sectionId]: false }));
     }, 2000);
-  };
+  }, []);
 
   // Watch for data changes and trigger section glows
   useEffect(() => {
     if (state.agentSteps.length > 0) triggerGlow('reasoning');
-  }, [state.agentSteps.length]);
+  }, [state.agentSteps.length, triggerGlow]);
 
   useEffect(() => {
     if (state.evidence.length > 0) triggerGlow('evidence');
-  }, [state.evidence.length]);
+  }, [state.evidence.length, triggerGlow]);
 
   useEffect(() => {
     if (state.rca) triggerGlow('rca');
-  }, [state.rca]);
+  }, [state.rca, triggerGlow]);
 
   useEffect(() => {
     if (state.actions.length > 0) triggerGlow('actions');
-  }, [state.actions.length]);
+  }, [state.actions.length, triggerGlow]);
 
   useEffect(() => {
     const hasFailed = state.panels.some(p => p.status === 'failed');
     const hasHealed = state.panels.some(p => p.status === 'healed');
     if (hasFailed || hasHealed) triggerGlow('panels');
-  }, [state.panels]);
+  }, [state.panels, triggerGlow]);
 
-  // Auto-scroll to glowing section
+  // Auto-scroll to the most recently glowed section (not first in object order)
   useEffect(() => {
-    const activeGlow = Object.entries(glowing).find(([, v]) => v);
-    if (activeGlow) {
-      const el = document.getElementById(`section-${activeGlow[0]}`);
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
+    const id = lastGlowedRef.current;
+    if (id && glowing[id]) {
+      document.getElementById(`section-${id}`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
   }, [glowing]);
 
