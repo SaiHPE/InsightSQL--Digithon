@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import useWebSocket from './hooks/useWebSocket';
 import useDashboardState from './hooks/useDashboardState';
 import Header from './components/Header';
@@ -16,38 +16,62 @@ import ActionPanel from './components/ActionPanel';
 import ChatInput from './components/ChatInput';
 import DemoControl from './components/DemoControl';
 
-const TABS = [
-  { id: 'overview',      label: 'Overview' },
-  { id: 'investigation', label: 'Investigation' },
-  { id: 'panel-health',  label: 'Panel Health' },
-];
-
 export default function App() {
   const { isConnected, lastMessage } = useWebSocket();
   const { state, handleMessage, loadInitialData } = useDashboardState();
-  const [activeTab, setActiveTab] = useState('overview');
+
+  // Track which sections have fresh data for glow effect
+  const [glowing, setGlowing] = useState({});
+  const glowTimers = useRef({});
 
   useEffect(() => { loadInitialData(); }, [loadInitialData]);
   useEffect(() => { if (lastMessage) handleMessage(lastMessage); }, [lastMessage, handleMessage]);
 
-  useEffect(() => {
-    const phase = state.demo.phase;
-    // Switch to investigation when agent steps start or evidence arrives
-    if (state.agentSteps.length > 0 && activeTab === 'overview') {
-      setActiveTab('investigation');
-    }
-    // Switch to panel-health when panel breaks/heals
-    if (phase === 'incident_3' && activeTab !== 'panel-health') {
-      setActiveTab('panel-health');
-    }
-    // Switch to overview for incident 4 (capacity)
-    if (phase === 'incident_4' && activeTab === 'panel-health') {
-      setActiveTab('investigation');
-    }
-  }, [state.demo.phase, state.agentSteps.length, activeTab]);
+  // Glow a section when it gets new data, then fade after 2s
+  const triggerGlow = (sectionId) => {
+    setGlowing(prev => ({ ...prev, [sectionId]: true }));
+    clearTimeout(glowTimers.current[sectionId]);
+    glowTimers.current[sectionId] = setTimeout(() => {
+      setGlowing(prev => ({ ...prev, [sectionId]: false }));
+    }, 2000);
+  };
 
-  // Determine if an investigation is actively running (for chat input disabled state)
+  // Watch for data changes and trigger section glows
+  useEffect(() => {
+    if (state.agentSteps.length > 0) triggerGlow('reasoning');
+  }, [state.agentSteps.length]);
+
+  useEffect(() => {
+    if (state.evidence.length > 0) triggerGlow('evidence');
+  }, [state.evidence.length]);
+
+  useEffect(() => {
+    if (state.rca) triggerGlow('rca');
+  }, [state.rca]);
+
+  useEffect(() => {
+    if (state.actions.length > 0) triggerGlow('actions');
+  }, [state.actions.length]);
+
+  useEffect(() => {
+    const hasFailed = state.panels.some(p => p.status === 'failed');
+    const hasHealed = state.panels.some(p => p.status === 'healed');
+    if (hasFailed || hasHealed) triggerGlow('panels');
+  }, [state.panels]);
+
+  // Auto-scroll to glowing section
+  useEffect(() => {
+    const activeGlow = Object.entries(glowing).find(([, v]) => v);
+    if (activeGlow) {
+      const el = document.getElementById(`section-${activeGlow[0]}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  }, [glowing]);
+
   const isInvestigating = state.agentSteps.some(s => s.status === 'running');
+  const g = (id) => glowing[id] ? 'section-glow' : '';
 
   return (
     <div className="app">
@@ -58,70 +82,61 @@ export default function App() {
           {/* Page Header */}
           <div className="page-header">
             <h1 className="page-title">Operations Dashboard</h1>
+            <p className="page-subtitle">HPE GreenLake SAP Operations · InsightSQL</p>
           </div>
 
-          {/* Demo Narrator — visible during demo */}
+          {/* Demo Narrator */}
           <NarratorBar demo={state.demo} />
 
-          {/* Incident Banner — always visible when active */}
+          {/* Incident Banner */}
           {state.currentIncident && (
             <IncidentBanner incident={state.currentIncident} rca={state.rca} />
           )}
 
-          {/* KPI Cards — always visible */}
+          {/* KPI Cards */}
           <MetricCards latestMetrics={state.latestMetrics} />
 
-          {/* Tab Bar */}
-          <div className="tab-bar" role="tablist" aria-label="Dashboard sections">
-            {TABS.map(tab => (
-              <button
-                key={tab.id}
-                role="tab"
-                type="button"
-                className={`tab-btn ${activeTab === tab.id ? 'active' : ''}`}
-                aria-selected={activeTab === tab.id}
-                aria-controls={`tabpanel-${tab.id}`}
-                onClick={() => setActiveTab(tab.id)}
-              >
-                {tab.label}
-              </button>
-            ))}
+          {/* Row 1: Timeline (wide) + Topology (sidebar) */}
+          <div className="dash-row-hero">
+            <div className="dash-col-wide">
+              <TimelineChart metricsTimeline={state.metricsTimeline} backupWindows={state.backupWindows} />
+            </div>
+            <div className="dash-col-narrow">
+              <TopologyGraph topology={state.topology} />
+            </div>
           </div>
 
-          {/* Tab Content */}
-          {activeTab === 'overview' && (
-            <div id="tabpanel-overview" role="tabpanel" aria-label="Overview" className="tab-panel anim-in">
-              <TimelineChart metricsTimeline={state.metricsTimeline} backupWindows={state.backupWindows} />
-
-              <div className="cols-sidebar">
-                <TopologyGraph topology={state.topology} />
-                <EventLog events={state.eventLog} />
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'investigation' && (
-            <div id="tabpanel-investigation" role="tabpanel" aria-label="Investigation" className="tab-panel anim-in">
+          {/* Row 2: AI Investigation — 3 columns */}
+          <div className="dash-row-investigate">
+            <div id="section-reasoning" className={`dash-col-sm ${g('reasoning')}`}>
               <AIReasoningChain steps={state.agentSteps} />
+            </div>
+            <div id="section-evidence" className={`dash-col-md ${g('evidence')}`}>
               <EvidencePanel evidence={state.evidence} />
-
-              <div className="cols-2">
+            </div>
+            <div className="dash-col-sm" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
+              <div id="section-rca" className={g('rca')}>
                 <RCANarrative rca={state.rca} />
+              </div>
+              <div id="section-actions" className={g('actions')}>
                 <ActionPanel actions={state.actions} />
               </div>
-
-              <ChatInput
-                incidentId={state.currentIncident?.incident_id}
-                isInvestigating={isInvestigating}
-              />
             </div>
-          )}
+          </div>
 
-          {activeTab === 'panel-health' && (
-            <div id="tabpanel-panel-health" role="tabpanel" aria-label="Panel Health" className="tab-panel anim-in">
-              <PanelHealth panels={state.panels} healing={state.panelHealing} />
-            </div>
-          )}
+          {/* Row 3: Panel Health (full width) */}
+          <div id="section-panels" className={g('panels')}>
+            <PanelHealth panels={state.panels} healing={state.panelHealing} />
+          </div>
+
+          {/* Row 4: Event Log + Chat */}
+          <div className="dash-row-bottom">
+            <EventLog events={state.eventLog} />
+            <ChatInput
+              incidentId={state.currentIncident?.incident_id}
+              isInvestigating={isInvestigating}
+            />
+          </div>
         </div>
       </main>
 
