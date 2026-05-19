@@ -4,8 +4,9 @@ import asyncio
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
 from app.config import get_settings
 from app.db.engine import init_db, close_db, get_pool
@@ -89,25 +90,29 @@ async def health_check():
     }
 
 
+class AdhocAskRequest(BaseModel):
+    question: str
+
+
 @app.post("/api/ask")
-async def adhoc_ask(body: dict):
+async def adhoc_ask(body: AdhocAskRequest):
     """Ad-hoc Text-to-SQL question — works without an active incident.
 
-    Creates or reuses an 'adhoc' incident so the full investigation
+    Creates a unique incident so the full investigation
     pipeline (schema grounding → SQL gen → validation → execution)
     runs identically, and results stream via WebSocket to the AI panel.
     """
+    import uuid
     from app.agent.text_to_sql import investigate
 
-    question = (body.get("question") or "").strip()
+    question = body.question.strip()
     if not question:
-        from fastapi import HTTPException
         raise HTTPException(status_code=422, detail="question is required")
 
     pool = await get_pool()
 
-    # Ensure an adhoc incident row exists so evidence_runs FK doesn't fail
-    incident_id = "adhoc-query"
+    # Create a unique incident per request so concurrent queries don't clobber
+    incident_id = f"adhoc-{uuid.uuid4().hex[:8]}"
     async with pool.acquire() as conn:
         await conn.execute(
             """INSERT INTO ops.incidents (incident_id, title, severity, status)

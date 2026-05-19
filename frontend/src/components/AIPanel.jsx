@@ -140,7 +140,7 @@ function InvestigationTab({ steps, evidence }) {
         <div className="ai-empty-state">
           <Search size={28} strokeWidth={1.5} />
           <div className="ai-empty-title">No active investigation</div>
-          <div className="ai-empty-desc">Investigations activate automatically when an incident is detected, or ask a question below.</div>
+          <div className="ai-empty-desc">Investigations activate automatically when an incident is detected.</div>
         </div>
       )}
     </div>
@@ -264,8 +264,10 @@ export default function AIPanel({ steps, evidence, rca, actions }) {
   }, [rca, actions.length]);
 
   useEffect(() => {
-    if (steps.length > 0 && !rca?.rca) setActiveTab('investigation');
-  }, [steps.length, rca]);
+    if (steps.length > 0 && !rca?.rca && actions.length === 0) {
+      setActiveTab('investigation');
+    }
+  }, [steps.length, rca, actions.length]);
 
   const investigationCount = steps.length + evidence.length;
   const rcaCount = (rca?.rca ? 1 : 0) + actions.length;

@@ -2,11 +2,14 @@
 
 import asyncio
 import json
+import logging
 import asyncpg
 from fastapi import APIRouter, HTTPException
 
 from app.db.engine import get_pool
 from app.ws.manager import manager
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -49,6 +52,7 @@ async def get_all_panel_data():
             async with pool.acquire() as c:
                 async with c.transaction():
                     await c.execute("SET TRANSACTION READ ONLY")
+                    await c.execute("SET LOCAL statement_timeout = '3000ms'")
                     rows = await c.fetch(sql)
             contract = json.loads(panel_row["contract_json"]) if isinstance(panel_row["contract_json"], str) else panel_row["contract_json"]
             results[pid] = {
@@ -61,11 +65,12 @@ async def get_all_panel_data():
                 "row_count": len(rows),
             }
         except Exception as e:
+            logger.exception("Panel %s query execution failed", pid)
             results[pid] = {
                 "panel_id": pid,
                 "panel_name": panel_row["panel_name"],
                 "status": "failed",
-                "error": str(e),
+                "error": "Panel query execution failed",
                 "rows": [],
                 "row_count": 0,
             }

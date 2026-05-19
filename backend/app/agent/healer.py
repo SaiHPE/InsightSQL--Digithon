@@ -41,10 +41,12 @@ async def heal_panel(pool: asyncpg.Pool, panel_id: str) -> dict:
     contract_json = json.dumps(json.loads(panel["contract_json"]), indent=2) if isinstance(panel["contract_json"], str) else json.dumps(panel["contract_json"], indent=2)
 
     # Parse expected columns from contract
+    contract = {}
     try:
         contract = json.loads(panel["contract_json"]) if isinstance(panel["contract_json"], str) else panel["contract_json"]
         expected_columns = [c["name"] for c in contract.get("columns", [])]
     except Exception:
+        contract = {}
         expected_columns = []
 
     # Step 2: Get error — validate broken SQL first, then EXPLAIN
@@ -126,7 +128,7 @@ async def heal_panel(pool: asyncpg.Pool, panel_id: str) -> dict:
         # Fresh data for the healed panel chart
         "chart_type": chart_type,
         "columns": shadow_result.columns or [],
-        "rows": shadow_result.rows or [],
+        "rows": (shadow_result.rows or [])[:50],
         "row_count": shadow_result.row_count,
     }
     await manager.broadcast("panel_healed", result)

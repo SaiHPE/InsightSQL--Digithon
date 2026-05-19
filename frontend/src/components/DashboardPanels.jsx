@@ -351,7 +351,12 @@ export default function DashboardPanels({ panels, panelData, healing }) {
 
                 {/* Footer stats */}
                 <div className="dp-tile-footer">
-                  {isFailed ? (
+                  {isHealing ? (
+                    <span style={{ color: 'var(--status-info)', fontSize: 11 }}>
+                      <RefreshCw size={10} style={{ verticalAlign: 'middle', marginRight: 2 }} className="spinner" />
+                      Healing…
+                    </span>
+                  ) : isFailed ? (
                     <span style={{ color: 'var(--status-critical)', fontSize: 11 }}>SQL Error</span>
                   ) : isHealed ? (
                     <span style={{ color: 'var(--hpe-green)', fontSize: 11 }}>

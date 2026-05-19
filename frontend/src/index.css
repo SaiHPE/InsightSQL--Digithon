@@ -1354,6 +1354,7 @@ a:hover {
   .dash-row-panels { grid-template-columns: 1fr; }
   .dash-row-bottom { grid-template-columns: 1fr; }
   .sql-diff { grid-template-columns: 1fr; }
+  .dp-grid { grid-template-columns: repeat(2, 1fr); }
 }
 /* Mobile menu toggle — hidden on desktop */
 .header-mobile-toggle { display: none; }
@@ -1376,6 +1377,7 @@ a:hover {
   .header-mobile-toggle { display: inline-flex; }
   .kpi-row { grid-template-columns: 1fr; }
   .panel-grid { grid-template-columns: 1fr; }
+  .dp-grid { grid-template-columns: 1fr; }
   .banner { flex-direction: column; align-items: flex-start; gap: var(--space-sm); }
 }
 @media (max-width: 576px) { /* xsmall */
