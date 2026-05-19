@@ -46,8 +46,8 @@ const Y_AXIS_LABELS = {
 
 /** Descriptive panel subtitle based on panel_id */
 const PANEL_DESCRIPTIONS = {
-  panel_sap_p95: 'P95 response time over last 2 hours',
-  panel_storage_lat: 'Avg storage latency over last 2 hours',
+  panel_sap_p95: 'P95 response time over last 30 min',
+  panel_storage_lat: 'Avg storage latency over last 30 min',
   panel_top_hosts: 'Avg CPU utilization per host',
   panel_top_volumes: 'Latency & IOPS per volume',
   panel_alert_count: 'Alerts by severity (last hour)',

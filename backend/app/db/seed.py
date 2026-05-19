@@ -247,7 +247,7 @@ async def seed_dashboard_panels(pool: asyncpg.Pool):
                       FROM ops.metrics_norm
                       WHERE resource_id = 'sap_sid:PRD'
                         AND metric_name = 'sap.response.p95_ms'
-                        AND metric_ts >= now() - interval '2 hours'
+                        AND metric_ts >= now() - interval '30 minutes'
                       GROUP BY 1 ORDER BY 1""",
         },
         {
@@ -262,7 +262,7 @@ async def seed_dashboard_panels(pool: asyncpg.Pool):
                       FROM ops.metrics_norm
                       WHERE resource_id = 'array:primera-prod-01'
                         AND metric_name = 'storage.latency.ms'
-                        AND metric_ts >= now() - interval '2 hours'
+                        AND metric_ts >= now() - interval '30 minutes'
                       GROUP BY 1 ORDER BY 1""",
         },
         {
@@ -278,7 +278,7 @@ async def seed_dashboard_panels(pool: asyncpg.Pool):
                       JOIN ops.resources r ON r.resource_id = m.resource_id
                       WHERE r.resource_type = 'host'
                         AND m.metric_name = 'host.cpu.util_pct'
-                        AND m.metric_ts >= now() - interval '2 hours'
+                        AND m.metric_ts >= now() - interval '30 minutes'
                       GROUP BY r.display_name
                       ORDER BY value DESC""",
         },
@@ -299,7 +299,7 @@ async def seed_dashboard_panels(pool: asyncpg.Pool):
                       FROM ops.metrics_norm m
                       JOIN ops.resources r ON r.resource_id = m.resource_id
                       WHERE r.resource_type = 'volume'
-                        AND m.metric_ts >= now() - interval '2 hours'
+                        AND m.metric_ts >= now() - interval '30 minutes'
                       GROUP BY r.display_name
                       ORDER BY latency_ms DESC""",
         },
