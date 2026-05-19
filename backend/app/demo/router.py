@@ -9,7 +9,6 @@ from app.ws.manager import manager
 from app.demo.scenarios import (
     run_full_demo,
     incident_1_sap_slowdown,
-    incident_2_compute_degradation,
     incident_3_sql_self_heal,
     incident_4_capacity_drift,
 )
@@ -29,19 +28,18 @@ _demo_lock = asyncio.Lock()
 # Map incident number → function + metadata
 _INCIDENTS = {
     1: {"fn": incident_1_sap_slowdown, "title": "SAP Slowdown"},
-    2: {"fn": incident_2_compute_degradation, "title": "Compute Degradation"},
-    3: {"fn": incident_3_sql_self_heal, "title": "SQL Self-Heal"},
-    4: {"fn": incident_4_capacity_drift, "title": "Capacity Drift"},
+    2: {"fn": incident_3_sql_self_heal, "title": "SQL Self-Heal"},
+    3: {"fn": incident_4_capacity_drift, "title": "Capacity Drift"},
 }
 
 
 @router.post("/incident/{incident_num}")
 async def trigger_incident(incident_num: int):
-    """Trigger a single incident by number (1-4)."""
+    """Trigger a single incident by number (1-3)."""
     if incident_num not in _INCIDENTS:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid incident number: {incident_num}. Must be 1-4.",
+            detail=f"Invalid incident number: {incident_num}. Must be 1-3.",
         )
 
     async with _demo_lock:
@@ -68,7 +66,7 @@ async def trigger_incident(incident_num: int):
 
 @router.post("/start")
 async def start_demo():
-    """Start the full 4-incident demo sequence (auto-sequenced)."""
+    """Start the full 3-incident demo sequence (auto-sequenced)."""
     async with _demo_lock:
         if _demo_state["running"]:
             raise HTTPException(status_code=409, detail="Demo already running")
@@ -80,7 +78,7 @@ async def start_demo():
         async def _run():
             try:
                 await run_full_demo(pool)
-                _demo_state["completed"] = {1, 2, 3, 4}
+                _demo_state["completed"] = {1, 2, 3}
             finally:
                 _demo_state["running"] = False
                 _demo_state["phase"] = "idle"

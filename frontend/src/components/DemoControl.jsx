@@ -3,9 +3,8 @@ import { Zap, RotateCcw, ChevronDown, ChevronUp, Loader2, Check } from 'lucide-r
 
 const INCIDENTS = [
   { num: 1, label: 'SAP Slowdown', desc: 'Storage I/O contention from HANA backup' },
-  { num: 2, label: 'Compute', desc: 'Host thermal throttling on prd-hana-02' },
-  { num: 3, label: 'Self-Heal', desc: 'Dashboard panel SQL auto-repair' },
-  { num: 4, label: 'Capacity', desc: 'Storage capacity forecast breach' },
+  { num: 2, label: 'Self-Heal', desc: 'Dashboard panel SQL auto-repair' },
+  { num: 3, label: 'Capacity', desc: 'Storage capacity forecast breach' },
 ];
 
 export default function DemoControl({ demo }) {
@@ -114,6 +113,10 @@ export default function DemoControl({ demo }) {
             <RotateCcw size={14} /> Reset
           </button>
           {error && <div style={{ color: 'var(--status-critical)', fontSize: 12, marginTop: 'var(--space-xxs)' }}>{error}</div>}
+          <div className="demo-progress">
+            <div className="demo-progress-bar" style={{ width: `${(completed.size / INCIDENTS.length) * 100}%` }} />
+          </div>
+          <div className="demo-progress-label">{completed.size}/{INCIDENTS.length} scenarios complete</div>
         </div>
       )}
       <button

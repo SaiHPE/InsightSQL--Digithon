@@ -128,20 +128,21 @@ async def seed_baseline_metrics(pool: asyncpg.Pool):
     for i in range(minutes):
         ts = start + timedelta(minutes=i)
 
-        # SAP response time - normal: 120-160ms
-        rows.append((ts, "sap_sid:PRD", "sap.response.p95_ms", 120 + random.uniform(0, 40), "ms"))
+        # SAP response time - normal: 130-155ms  (warn=300, crit=500)
+        rows.append((ts, "sap_sid:PRD", "sap.response.p95_ms", 130 + random.uniform(0, 25), "ms"))
 
-        # Host metrics - normal
+        # Host metrics - comfortably below thresholds
         for host_id in ["host:prd-hana-01", "host:prd-hana-02"]:
-            rows.append((ts, host_id, "host.cpu.util_pct", 35 + random.uniform(0, 20), "%"))
-            rows.append((ts, host_id, "host.temp.c", 38 + random.uniform(0, 4), "C"))
-            rows.append((ts, host_id, "host.memory.util_pct", 60 + random.uniform(0, 10), "%"))
+            rows.append((ts, host_id, "host.cpu.util_pct", 38 + random.uniform(0, 14), "%"))      # 38-52  (warn=70)
+            rows.append((ts, host_id, "host.temp.c", 37 + random.uniform(0, 5), "C"))              # 37-42  (warn=55)
+            rows.append((ts, host_id, "host.memory.util_pct", 52 + random.uniform(0, 10), "%"))    # 52-62  (warn=75)
 
-        # Storage array metrics - normal
-        rows.append((ts, "array:primera-prod-01", "storage.latency.ms", 1.5 + random.uniform(0, 1.5), "ms"))
+        # Storage array metrics - well below warning thresholds
+        rows.append((ts, "array:primera-prod-01", "storage.latency.ms", 1.5 + random.uniform(0, 1.2), "ms"))  # 1.5-2.7 (warn=5)
         rows.append((ts, "array:primera-prod-01", "storage.iops", 8000 + random.uniform(0, 4000), "iops"))
         rows.append((ts, "array:primera-prod-01", "storage.queue_depth", 4 + random.uniform(0, 4), "count"))
-        rows.append((ts, "array:primera-prod-01", "storage.saturation.score", 15 + random.uniform(0, 10), "%"))
+        rows.append((ts, "array:primera-prod-01", "storage.saturation.score", 12 + random.uniform(0, 8), "%"))
+        rows.append((ts, "array:primera-prod-01", "storage.used_pct", 62 + random.uniform(0, 4), "%"))        # 62-66  (warn=80)
 
         # Volume metrics - normal
         for vol_id in ["volume:hana_log_lun_01", "volume:hana_data_lun_01", "volume:hana_backup_lun_01"]:
@@ -209,16 +210,16 @@ async def seed_capacity_history(pool: asyncpg.Pool):
     for day in range(30):
         for hour in range(0, 24, 4):  # Every 4 hours
             ts = now - timedelta(days=30 - day) + timedelta(hours=hour)
-            # Linear growth from 65% to ~89% over 30 days
-            base_pct = 65 + (24 * (day / 29))
+            # Linear growth from 40% to ~65% over 30 days — stays below warn=80
+            base_pct = 40 + (25 * (day / 29))
             noise = random.uniform(-0.5, 0.5)
 
             rows.append((ts, "array:primera-prod-01", "storage.used_pct",
                          round(base_pct + noise, 1), "%"))
-            # Backup volume grows faster (retention buildup)
-            backup_pct = 55 + (35 * (day / 29)) + noise
+            # Backup volume grows moderately — stays below warn=80
+            backup_pct = 35 + (28 * (day / 29)) + noise
             rows.append((ts, "volume:hana_backup_lun_01", "storage.used_pct",
-                         round(min(backup_pct, 95), 1), "%"))
+                         round(min(backup_pct, 70), 1), "%"))
 
     async with pool.acquire() as conn:
         await conn.executemany(
@@ -246,7 +247,7 @@ async def seed_dashboard_panels(pool: asyncpg.Pool):
                       FROM ops.metrics_norm
                       WHERE resource_id = 'sap_sid:PRD'
                         AND metric_name = 'sap.response.p95_ms'
-                        AND metric_ts >= now() - interval '2 hours'
+                        AND metric_ts >= now() - interval '30 minutes'
                       GROUP BY 1 ORDER BY 1""",
         },
         {
@@ -261,7 +262,7 @@ async def seed_dashboard_panels(pool: asyncpg.Pool):
                       FROM ops.metrics_norm
                       WHERE resource_id = 'array:primera-prod-01'
                         AND metric_name = 'storage.latency.ms'
-                        AND metric_ts >= now() - interval '2 hours'
+                        AND metric_ts >= now() - interval '30 minutes'
                       GROUP BY 1 ORDER BY 1""",
         },
         {

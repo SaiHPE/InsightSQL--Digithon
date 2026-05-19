@@ -2,14 +2,13 @@ import { useMemo } from 'react';
 import ReactECharts from 'echarts-for-react';
 
 /**
- * TimelineChart — Multi-series telemetry chart with backup window overlay.
+ * TimelineChart — Multi-series telemetry chart.
  *
  * Series:
  *   1. SAP p95 response time (solid, graph-1 green, left Y)
  *   2. Storage latency (solid, graph-2 teal, right Y)
  *   3. Host temperature (dashed, graph-4 orange, right Y)
  *   4. Host CPU % (dashed, graph-3 purple, right Y)
- *   5. Backup window (markArea overlay)
  *
  * HPE Design Compliance:
  *   - Uses HPE categorical data-visualization palette
@@ -17,7 +16,7 @@ import ReactECharts from 'echarts-for-react';
  *   - Transparent background (inherits surface)
  *   - Proper contrast text colors for axes
  */
-export default function TimelineChart({ metricsTimeline = [], backupWindows = [] }) {
+export default function TimelineChart({ metricsTimeline = [] }) {
   const option = useMemo(() => {
     const sapData = [];
     const storageData = [];
@@ -32,11 +31,7 @@ export default function TimelineChart({ metricsTimeline = [], backupWindows = []
       if (e['host.cpu.util_pct'] !== undefined) cpuData.push([ts, e['host.cpu.util_pct']]);
     }
 
-    // Backup window markArea data
-    const markAreaData = backupWindows.map(bw => ([
-      { xAxis: new Date(bw.start).getTime() },
-      { xAxis: bw.end ? new Date(bw.end).getTime() : Date.now() },
-    ]));
+
 
     return {
       backgroundColor: 'transparent',
@@ -87,17 +82,7 @@ export default function TimelineChart({ metricsTimeline = [], backupWindows = []
               colorStops: [{ offset: 0, color: 'rgba(1,169,130,0.18)' }, { offset: 1, color: 'rgba(1,169,130,0)' }],
             },
           },
-          markArea: markAreaData.length > 0 ? {
-            silent: true,
-            itemStyle: { color: 'rgba(255,188,68,0.08)', borderWidth: 1, borderColor: 'rgba(255,188,68,0.3)', borderType: 'dashed' },
-            label: {
-              show: markAreaData.length > 0,
-              position: 'insideTop',
-              formatter: 'Backup Running',
-              color: '#FFBC44', fontSize: 10, fontWeight: 500, fontFamily: 'HPE Graphik',
-            },
-            data: markAreaData,
-          } : undefined,
+
         },
         {
           name: 'Storage Latency', type: 'line', yAxisIndex: 1, data: storageData,
@@ -123,14 +108,14 @@ export default function TimelineChart({ metricsTimeline = [], backupWindows = []
       ],
       animation: true, animationDuration: 400,
     };
-  }, [metricsTimeline, backupWindows]);
+  }, [metricsTimeline]);
 
   return (
     <div className="section">
       <div className="section-head">
         <span className="section-title">Telemetry Timeline</span>
         <span style={{ fontSize: 12, color: 'var(--text-weak)' }}>
-          SAP Response · Storage Latency · Host Metrics · Backup Window
+          SAP Response · Storage Latency · Host Metrics
         </span>
       </div>
       <div className="section-body" style={{ padding: 'var(--space-xs) var(--space-md)' }}>

@@ -1,16 +1,36 @@
-"""Demo scenario scripts — 4 scripted incidents with timed injection + real LLM calls."""
+"""Demo scenario scripts — 3 incidents with real data injection and autonomous AI investigation."""
 
 import asyncio
-import json
 from datetime import datetime, timedelta, timezone
 
 import asyncpg
 
 from app.ws.manager import manager
-from app.ingestion.normalizer import normalize_alert, normalize_metrics, normalize_compute_event
-from app.agent.text_to_sql import investigate
+from app.ingestion.normalizer import normalize_alert, normalize_metrics
+from app.agent.investigator import autonomous_investigate
 from app.agent.rca import generate_rca
 from app.agent.healer import heal_panel
+
+
+async def _inject_and_broadcast(pool, resource_id, metrics, ts=None):
+    """Single data path: insert metrics to DB + broadcast to frontend.
+
+    This is the ONLY way scenario data enters the system.
+    Both the dashboard panel refresh loop and the AI agent will see this data.
+    """
+    if ts is None:
+        ts = datetime.now(timezone.utc)
+
+    await normalize_metrics(pool, {
+        "resource_id": resource_id,
+        "event_ts": ts.isoformat(),
+        "metrics": metrics,
+    })
+    await manager.broadcast("metrics_update", {
+        "resource_id": resource_id,
+        "metrics": metrics,
+        "event_ts": ts.isoformat(),
+    })
 
 
 async def run_full_demo(pool: asyncpg.Pool):
@@ -21,20 +41,18 @@ async def run_full_demo(pool: asyncpg.Pool):
             "title": "Demo Starting",
             "talking_point": "InsightSQL live operations dashboard initializing...",
         })
-        await asyncio.sleep(3)
+        await asyncio.sleep(8)
 
         await incident_1_sap_slowdown(pool)
-        await asyncio.sleep(8)
-        await incident_2_compute_degradation(pool)
-        await asyncio.sleep(8)
+        await asyncio.sleep(15)
         await incident_3_sql_self_heal(pool)
-        await asyncio.sleep(8)
+        await asyncio.sleep(15)
         await incident_4_capacity_drift(pool)
 
         await manager.broadcast("demo_phase", {
-            "phase": "complete", "phase_number": 4,
+            "phase": "complete", "phase_number": 3,
             "title": "Demo Complete",
-            "talking_point": "All four incidents demonstrated. InsightSQL auto-investigated, generated evidence-backed RCA, self-healed a broken dashboard panel, and forecast capacity risk.",
+            "talking_point": "All three incidents demonstrated. InsightSQL auto-investigated, generated evidence-backed RCA, self-healed a broken dashboard panel, and forecast capacity risk.",
         })
     except Exception as e:
         import traceback
@@ -51,8 +69,8 @@ async def incident_1_sap_slowdown(pool: asyncpg.Pool):
     now = datetime.now(timezone.utc)
     incident_id = "INC-001"
 
-    # Insert running backup FIRST — backup is the root cause, must be visible before alert
-    backup_start = now - timedelta(minutes=2)
+    # ── Insert backup (root cause) ──────────────────────────────────────
+    backup_start = now - timedelta(minutes=5)
     async with pool.acquire() as conn:
         await conn.execute(
             """INSERT INTO ops.sap_backups (backup_id, sid, started_at, status, backup_type)
@@ -60,19 +78,14 @@ async def incident_1_sap_slowdown(pool: asyncpg.Pool):
                ON CONFLICT DO NOTHING""",
             backup_start,
         )
-    await manager.broadcast("backup_started", {
-        "backup_id": "backup-incident-001",
-        "started_at": backup_start.isoformat(),
-        "backup_type": "data",
-    })
-    await asyncio.sleep(2)
 
+    # ── Announce incident ───────────────────────────────────────────────
     await manager.broadcast("demo_phase", {
         "phase": "incident_1", "phase_number": 1,
         "title": "Incident 1: SAP Slowdown",
         "talking_point": "A HANA backup is running. Now a Grafana alert fires — SAP response time spiked to 842ms.",
     })
-    await asyncio.sleep(2)
+    await asyncio.sleep(4)
 
     # Create incident
     async with pool.acquire() as conn:
@@ -103,48 +116,29 @@ async def incident_1_sap_slowdown(pool: asyncpg.Pool):
     }
     await normalize_alert(pool, alert_payload)
     await manager.broadcast("alert_received", {"status": "firing", "alerts": alert_payload["alerts"]})
-    await asyncio.sleep(1)
+    await asyncio.sleep(3)
 
-    # Inject SAP + storage metrics gradually
-    for i in range(10):
-        ts = now + timedelta(seconds=i * 6)
-        p95 = 145 + (697 * (i / 9))
-        lat = 2.1 + (7.7 * (i / 9))
-        iops = 8000 + (20450 * (i / 9))
-        sat = 15 + (66 * (i / 9))
+    # ── Stream metrics — single data path via _inject_and_broadcast ─────
+    # Each iteration: insert to DB + broadcast to frontend.
+    # Panel refresh loop will pick these up on the next 10s cycle.
+    for i in range(12):
+        progress = i / 11
+        # Ramp from baseline → spike
+        p95 = 145 + (697 * progress)       # 145 → 842 ms
+        lat = 2.1 + (7.7 * progress)       # 2.1 → 9.8 ms
+        iops = 8000 + (20450 * progress)
+        sat = 15 + (66 * progress)
 
-        await normalize_metrics(pool, {
-            "resource_id": "sap_sid:PRD", "event_ts": ts.isoformat(),
-            "metrics": {"sap.response.p95_ms": round(p95, 1)},
-        })
-        await manager.broadcast("metrics_update", {
-            "resource_id": "sap_sid:PRD",
-            "metrics": {"sap.response.p95_ms": round(p95, 1)},
-            "event_ts": ts.isoformat(),
-        })
+        ts = datetime.now(timezone.utc)
+        await _inject_and_broadcast(pool, "sap_sid:PRD",
+            {"sap.response.p95_ms": round(p95, 1)}, ts)
+        await _inject_and_broadcast(pool, "volume:hana_log_lun_01",
+            {"storage.latency.ms": round(lat, 2), "storage.iops": round(iops), "storage.saturation.score": round(sat)}, ts)
+        await _inject_and_broadcast(pool, "array:primera-prod-01",
+            {"storage.latency.ms": round(lat, 2)}, ts)
+        await asyncio.sleep(1.5)
 
-        await normalize_metrics(pool, {
-            "resource_id": "volume:hana_log_lun_01", "event_ts": ts.isoformat(),
-            "metrics": {"storage.latency.ms": round(lat, 2), "storage.iops": round(iops), "storage.saturation.score": round(sat)},
-        })
-        await manager.broadcast("metrics_update", {
-            "resource_id": "volume:hana_log_lun_01",
-            "metrics": {"storage.latency.ms": round(lat, 2)},
-            "event_ts": ts.isoformat(),
-        })
-
-        await normalize_metrics(pool, {
-            "resource_id": "array:primera-prod-01", "event_ts": ts.isoformat(),
-            "metrics": {"storage.latency.ms": round(lat, 2)},
-        })
-        await manager.broadcast("metrics_update", {
-            "resource_id": "array:primera-prod-01",
-            "metrics": {"storage.latency.ms": round(lat, 2)},
-            "event_ts": ts.isoformat(),
-        })
-        await asyncio.sleep(0.5)
-
-    # Topology
+    # Topology status
     await manager.broadcast("topology_update", {
         "resource_id": "volume:hana_log_lun_01", "status": "critical",
         "summary": "Storage latency 9.8ms, saturation 81%",
@@ -154,41 +148,33 @@ async def incident_1_sap_slowdown(pool: asyncpg.Pool):
         "summary": "Array latency elevated",
     })
 
-    await asyncio.sleep(3)
+    await asyncio.sleep(8)
 
-    # AI Investigation 1
+    # ── AI Investigation (autonomous) ──────────────────────────────────
     await manager.broadcast("demo_phase", {
         "phase": "incident_1", "phase_number": 1,
         "title": "Incident 1: AI Investigation",
         "talking_point": "InsightSQL auto-investigates. Watch the reasoning chain — schema → SQL → validate → execute.",
     })
-    await asyncio.sleep(2)
-    await investigate(pool, incident_id,
-        "Which resource correlates most with PRD response time degradation in the last 15 minutes?",
-        time_range_minutes=15)
-    await asyncio.sleep(5)
+    await asyncio.sleep(3)
 
-    # AI Investigation 2
-    await manager.broadcast("demo_phase", {
-        "phase": "incident_1", "phase_number": 1,
-        "title": "Incident 1: Backup Correlation",
-        "talking_point": "Second query checks for backup contention.",
-    })
-    await investigate(pool, incident_id,
-        "Was a HANA backup running during the SAP PRD slowdown? Show backup start time and status.",
-        time_range_minutes=15)
-    await asyncio.sleep(5)
+    await autonomous_investigate(pool, incident_id,
+        hint="SAP PRD response time spiked. Check storage latency on the log volume and whether a HANA backup is running.",
+        title="SAP SID PRD response time degradation",
+        severity="critical",
+    )
+    await asyncio.sleep(8)
 
-    # RCA
+    # ── RCA ─────────────────────────────────────────────────────────────
     await manager.broadcast("demo_phase", {
         "phase": "incident_1", "phase_number": 1,
         "title": "Incident 1: Root Cause Analysis",
         "talking_point": "RCA names the root cause: backup I/O contention on HPE Primera log volume.",
     })
     await generate_rca(pool, incident_id)
-    await asyncio.sleep(3)
+    await asyncio.sleep(8)
 
-    # Remediation
+    # ── Remediation ────────────────────────────────────────────────────
     async with pool.acquire() as conn:
         await conn.execute(
             """INSERT INTO ops.remediation_actions (incident_id, action_type, target_resource_id, status, notes)
@@ -196,7 +182,6 @@ async def incident_1_sap_slowdown(pool: asyncpg.Pool):
                        'Reschedule HANA backup to off-peak window (02:00-04:00)')""",
         )
 
-    # Broadcast remediation for action panel
     await manager.broadcast("remediation_suggested", {
         "incident_id": "INC-001",
         "action_type": "reschedule_backup",
@@ -206,92 +191,6 @@ async def incident_1_sap_slowdown(pool: asyncpg.Pool):
     })
 
 
-async def incident_2_compute_degradation(pool: asyncpg.Pool):
-    """Incident 2: Host thermal throttling on prd-hana-02."""
-    now = datetime.now(timezone.utc)
-    incident_id = "INC-002"
-
-    # Create incident with its own ID
-    async with pool.acquire() as conn:
-        await conn.execute(
-            """INSERT INTO ops.incidents (incident_id, title, severity, status, impact_per_min_usd)
-               VALUES ($1, $2, 'critical', 'active', 8500)
-               ON CONFLICT (incident_id) DO UPDATE SET status = 'active', severity = 'critical'""",
-            incident_id, "Host thermal throttling — prd-hana-02",
-        )
-
-    await manager.broadcast("incident_created", {
-        "incident_id": incident_id,
-        "title": "Host thermal throttling — prd-hana-02",
-        "severity": "critical",
-        "impact_per_min_usd": 8500,
-    })
-
-    await manager.broadcast("demo_phase", {
-        "phase": "incident_2", "phase_number": 2,
-        "title": "Incident 2: Compute Degradation",
-        "talking_point": "Second issue: host prd-hana-02 reports a critical thermal event.",
-    })
-    await asyncio.sleep(4)
-
-    # Compute event
-    await normalize_compute_event(pool, {
-        "source": "mock_hpe_compute",
-        "resource_id": "host:prd-hana-02",
-        "event_ts": now.isoformat(),
-        "severity": "critical",
-        "event_type": "server_health",
-        "summary": "Thermal threshold exceeded on host prd-hana-02",
-        "details": {"health_state": "Critical", "temperature_c": 72, "cpu_util_pct": 91, "fan_status": "degraded"},
-    })
-
-    # Inject host metrics
-    for i in range(8):
-        ts = now + timedelta(seconds=i * 6)
-        temp = 40 + (32 * (i / 7))
-        cpu = 45 + (46 * (i / 7))
-        await normalize_metrics(pool, {
-            "resource_id": "host:prd-hana-02", "event_ts": ts.isoformat(),
-            "metrics": {"host.cpu.util_pct": round(cpu, 1), "host.temp.c": round(temp, 1)},
-        })
-        await manager.broadcast("metrics_update", {
-            "resource_id": "host:prd-hana-02",
-            "metrics": {"host.cpu.util_pct": round(cpu, 1), "host.temp.c": round(temp, 1)},
-            "event_ts": ts.isoformat(),
-        })
-        await asyncio.sleep(0.5)
-
-    await manager.broadcast("topology_update", {
-        "resource_id": "host:prd-hana-02", "status": "critical",
-        "summary": "Thermal threshold exceeded, fan degraded",
-    })
-    await asyncio.sleep(3)
-
-    # Investigation 3
-    await manager.broadcast("demo_phase", {
-        "phase": "incident_2", "phase_number": 2,
-        "title": "Incident 2: Re-investigation",
-        "talking_point": "InsightSQL cross-correlates storage and compute metrics.",
-    })
-    await investigate(pool, incident_id,
-        "Is the SAP PRD slowdown caused by storage contention or compute degradation? Compare storage latency with host CPU and temperature.",
-        time_range_minutes=15)
-    await asyncio.sleep(5)
-
-    # Investigation 4
-    await investigate(pool, incident_id,
-        "Which host is degraded? Show host health events and temperature readings.",
-        time_range_minutes=15)
-    await asyncio.sleep(5)
-
-    # Updated RCA
-    await manager.broadcast("demo_phase", {
-        "phase": "incident_2", "phase_number": 2,
-        "title": "Incident 2: Updated RCA",
-        "talking_point": "RCA updated — compound root cause identified.",
-    })
-    await generate_rca(pool, incident_id)
-    await asyncio.sleep(3)
 
 
 async def incident_3_sql_self_heal(pool: asyncpg.Pool):
@@ -303,7 +202,7 @@ async def incident_3_sql_self_heal(pool: asyncpg.Pool):
         "title": "Incident 3: Dashboard Self-Heal",
         "talking_point": "Now for InsightSQL's differentiator. Watch the Panel Health section.",
     })
-    await asyncio.sleep(4)
+    await asyncio.sleep(8)
 
     # Break the panel — atomic transaction
     async with pool.acquire() as conn:
@@ -342,7 +241,7 @@ async def incident_3_sql_self_heal(pool: asyncpg.Pool):
         "title": "Incident 3: Panel Failed!",
         "talking_point": "Top Hosts panel just broke — a column was renamed. InsightSQL auto-heals it.",
     })
-    await asyncio.sleep(5)
+    await asyncio.sleep(10)
 
     # Heal using LLM
     await heal_panel(pool, panel_id)
@@ -352,7 +251,7 @@ async def incident_3_sql_self_heal(pool: asyncpg.Pool):
         "title": "Incident 3: Panel Healed!",
         "talking_point": "Panel restored automatically. Zero human intervention. Zero downtime.",
     })
-    await asyncio.sleep(4)
+    await asyncio.sleep(8)
 
 
 async def incident_4_capacity_drift(pool: asyncpg.Pool):
@@ -365,7 +264,7 @@ async def incident_4_capacity_drift(pool: asyncpg.Pool):
         "title": "Incident 4: Capacity Forecast Breach",
         "talking_point": "New alert: Primera storage array at 89% capacity, projected full in 14 days.",
     })
-    await asyncio.sleep(2)
+    await asyncio.sleep(4)
 
     # Create incident
     async with pool.acquire() as conn:
@@ -396,21 +295,14 @@ async def incident_4_capacity_drift(pool: asyncpg.Pool):
     }
     await normalize_alert(pool, alert_payload)
     await manager.broadcast("alert_received", {"status": "firing", "alerts": alert_payload["alerts"]})
-    await asyncio.sleep(3)
+    await asyncio.sleep(4)
 
-    # Inject recent capacity metrics (showing current 89%)
+    # ── Stream capacity metrics — single data path ─────────────────────
     for i in range(6):
         ts = now - timedelta(hours=i * 4)
-        pct = 89 - (i * 0.3)  # Showing recent trend
-        await normalize_metrics(pool, {
-            "resource_id": "array:primera-prod-01", "event_ts": ts.isoformat(),
-            "metrics": {"storage.used_pct": round(pct, 1)},
-        })
-        await manager.broadcast("metrics_update", {
-            "resource_id": "array:primera-prod-01",
-            "metrics": {"storage.used_pct": round(pct, 1)},
-            "event_ts": ts.isoformat(),
-        })
+        pct = 89 - (i * 0.3)
+        await _inject_and_broadcast(pool, "array:primera-prod-01",
+            {"storage.used_pct": round(pct, 1)}, ts)
 
     await manager.broadcast("topology_update", {
         "resource_id": "array:primera-prod-01", "status": "warning",
@@ -420,40 +312,32 @@ async def incident_4_capacity_drift(pool: asyncpg.Pool):
         "resource_id": "volume:hana_backup_lun_01", "status": "warning",
         "summary": "Backup volume at 90% capacity",
     })
-    await asyncio.sleep(3)
+    await asyncio.sleep(6)
 
-    # Investigation 1: Capacity trend
+    # ── AI Investigation (autonomous) ──────────────────────────────────
     await manager.broadcast("demo_phase", {
         "phase": "incident_4", "phase_number": 4,
         "title": "Incident 4: Capacity Trend Analysis",
         "talking_point": "InsightSQL queries 30 days of capacity history to forecast the breach.",
     })
-    await investigate(pool, incident_id,
-        "What is the storage capacity trend for primera-prod-01 over the last 30 days? Show daily used percentage.",
-        time_range_minutes=43200)  # 30 days
-    await asyncio.sleep(5)
 
-    # Investigation 2: What's consuming space
-    await manager.broadcast("demo_phase", {
-        "phase": "incident_4", "phase_number": 4,
-        "title": "Incident 4: Root Cause — Backup Retention",
-        "talking_point": "Which volume is growing fastest? InsightSQL identifies the backup volume.",
-    })
-    await investigate(pool, incident_id,
-        "Which volume on primera-prod-01 has the highest capacity usage? Compare backup volume growth to data volume.",
-        time_range_minutes=43200)
-    await asyncio.sleep(5)
+    await autonomous_investigate(pool, incident_id,
+        hint="Storage array primera-prod-01 at 89% capacity. Check 30-day capacity trend and which volumes are growing fastest. Check backup retention.",
+        title="GreenLake storage capacity forecast breach — primera-prod-01",
+        severity="warning",
+    )
+    await asyncio.sleep(8)
 
-    # RCA
+    # ── RCA ─────────────────────────────────────────────────────────────
     await manager.broadcast("demo_phase", {
         "phase": "incident_4", "phase_number": 4,
         "title": "Incident 4: Capacity RCA",
         "talking_point": "RCA: retained HANA backups on hana_backup_lun_01 driving capacity growth.",
     })
     await generate_rca(pool, incident_id)
-    await asyncio.sleep(3)
+    await asyncio.sleep(5)
 
-    # Remediation
+    # ── Remediation ────────────────────────────────────────────────────
     async with pool.acquire() as conn:
         await conn.execute(
             """INSERT INTO ops.remediation_actions (incident_id, action_type, target_resource_id, status, notes)
@@ -482,4 +366,3 @@ async def incident_4_capacity_drift(pool: asyncpg.Pool):
         "status": "suggested",
         "notes": "Request GreenLake capacity expansion via Consumption Analytics portal",
     })
-

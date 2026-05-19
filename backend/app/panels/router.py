@@ -1,13 +1,73 @@
 """Dashboard panel management and self-healing endpoints."""
 
+import asyncio
 import json
+import logging
 import asyncpg
 from fastapi import APIRouter, HTTPException
 
 from app.db.engine import get_pool
 from app.ws.manager import manager
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
+
+
+async def panel_refresh_loop():
+    """Background loop: re-execute all panel SQL every 10s and broadcast fresh data.
+
+    This ensures dashboard panels always reflect the latest DB state,
+    including metric spikes injected by the demo scenario.
+    """
+    while True:
+        await asyncio.sleep(10)
+        try:
+            pool = await get_pool()
+            data = await _fetch_all_panel_data(pool)
+            if data:
+                await manager.broadcast("panel_data_refresh", data)
+        except Exception:
+            logger.debug("Panel refresh cycle skipped", exc_info=True)
+
+
+async def _fetch_all_panel_data(pool):
+    """Execute all active panel queries and return chart-ready data dict."""
+    async with pool.acquire() as conn:
+        panels = await conn.fetch(
+            """SELECT p.panel_id, p.panel_name, p.status, p.contract_json,
+                      v.sql_text
+               FROM ops.dashboard_panels p
+               JOIN ops.panel_query_versions v
+                 ON v.panel_id = p.panel_id AND v.is_active = true
+               ORDER BY p.panel_id"""
+        )
+
+    results = {}
+    async def _exec_one(panel_row):
+        pid = panel_row["panel_id"]
+        sql = panel_row["sql_text"]
+        try:
+            async with pool.acquire() as c:
+                async with c.transaction():
+                    await c.execute("SET TRANSACTION READ ONLY")
+                    await c.execute("SET LOCAL statement_timeout = '3000ms'")
+                    rows = await c.fetch(sql)
+            contract = json.loads(panel_row["contract_json"]) if isinstance(panel_row["contract_json"], str) else panel_row["contract_json"]
+            results[pid] = {
+                "panel_id": pid,
+                "panel_name": panel_row["panel_name"],
+                "status": panel_row["status"],
+                "chart_type": contract.get("chart_type", "line"),
+                "columns": list(rows[0].keys()) if rows else [],
+                "rows": [dict(r) for r in rows[:50]],
+                "row_count": len(rows),
+            }
+        except Exception:
+            logger.debug("Panel %s refresh query failed", pid, exc_info=True)
+
+    await asyncio.gather(*[_exec_one(p) for p in panels])
+    return results
 
 
 @router.get("")
@@ -24,6 +84,13 @@ async def list_panels():
                ORDER BY p.panel_id"""
         )
     return [dict(r) for r in panels]
+
+
+@router.get("/all-data")
+async def get_all_panel_data():
+    """Execute all active panel queries and return chart-ready data."""
+    pool = await get_pool()
+    return await _fetch_all_panel_data(pool)
 
 
 @router.get("/{panel_id}/versions")

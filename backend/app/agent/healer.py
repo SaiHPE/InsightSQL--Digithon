@@ -1,5 +1,6 @@
 """SQL healing engine — repairs broken dashboard panel queries using LLM + schema introspection."""
 
+import asyncio
 import json
 import time
 import asyncpg
@@ -19,6 +20,7 @@ async def heal_panel(pool: asyncpg.Pool, panel_id: str) -> dict:
         "panel_id": panel_id, "step": "loading", "status": "running",
         "detail": "Loading panel and broken query...",
     })
+    await asyncio.sleep(0.8)
 
     async with pool.acquire() as conn:
         panel = await conn.fetchrow(
@@ -39,10 +41,12 @@ async def heal_panel(pool: asyncpg.Pool, panel_id: str) -> dict:
     contract_json = json.dumps(json.loads(panel["contract_json"]), indent=2) if isinstance(panel["contract_json"], str) else json.dumps(panel["contract_json"], indent=2)
 
     # Parse expected columns from contract
+    contract = {}
     try:
         contract = json.loads(panel["contract_json"]) if isinstance(panel["contract_json"], str) else panel["contract_json"]
         expected_columns = [c["name"] for c in contract.get("columns", [])]
     except Exception:
+        contract = {}
         expected_columns = []
 
     # Step 2: Get error — validate broken SQL first, then EXPLAIN
@@ -54,11 +58,13 @@ async def heal_panel(pool: asyncpg.Pool, panel_id: str) -> dict:
         explain_result = await explain_query(pool, broken_sql)
         error_text = explain_result.error or "Unknown error"
     await manager.broadcast("panel_healing", {"panel_id": panel_id, "step": "diagnosing", "status": "complete", "detail": f"Error: {error_text}", "elapsed": round(time.time() - start_time, 2)})
+    await asyncio.sleep(0.8)
 
     # Step 3: Schema map
     await manager.broadcast("panel_healing", {"panel_id": panel_id, "step": "schema_lookup", "status": "running", "detail": "Querying current schema..."})
     schema_map = await build_schema_map(pool)
     await manager.broadcast("panel_healing", {"panel_id": panel_id, "step": "schema_lookup", "status": "complete", "detail": "Schema map built", "elapsed": round(time.time() - start_time, 2)})
+    await asyncio.sleep(0.8)
 
     # Step 4: LLM generates fix
     await manager.broadcast("panel_healing", {"panel_id": panel_id, "step": "generating_fix", "status": "running", "detail": "Generating corrected SQL..."})
@@ -110,6 +116,22 @@ async def heal_panel(pool: asyncpg.Pool, panel_id: str) -> dict:
             await conn.execute("INSERT INTO ops.panel_query_versions (panel_id, version_no, sql_text, generated_by, is_active, healed_from_version) VALUES ($1, $2, $3, 'healer', true, $4)", panel_id, new_version, healed_sql, current_active["version_no"])
             await conn.execute("UPDATE ops.dashboard_panels SET status = 'healed' WHERE panel_id = $1", panel_id)
 
-    result = {"panel_id": panel_id, "status": "healed", "old_sql": broken_sql, "new_sql": healed_sql, "error_fixed": error_text, "old_version": active_query["version_no"], "new_version": new_version, "shadow_rows": shadow_result.row_count, "elapsed": round(time.time() - start_time, 2)}
+    await manager.broadcast("panel_healing", {"panel_id": panel_id, "step": "promoting", "status": "complete", "detail": f"Version {new_version} promoted", "elapsed": round(time.time() - start_time, 2)})
+
+    # Include chart data so frontend can render immediately
+    chart_type = contract.get("chart_type", "table") if isinstance(contract, dict) else "table"
+    result = {
+        "panel_id": panel_id, "status": "healed",
+        "old_sql": broken_sql, "new_sql": healed_sql,
+        "error_fixed": error_text,
+        "old_version": active_query["version_no"], "new_version": new_version,
+        "shadow_rows": shadow_result.row_count,
+        "elapsed": round(time.time() - start_time, 2),
+        # Fresh data for the healed panel chart
+        "chart_type": chart_type,
+        "columns": shadow_result.columns or [],
+        "rows": (shadow_result.rows or [])[:50],
+        "row_count": shadow_result.row_count,
+    }
     await manager.broadcast("panel_healed", result)
     return result

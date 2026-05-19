@@ -4,8 +4,9 @@ import asyncio
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
 from app.config import get_settings
 from app.db.engine import init_db, close_db, get_pool
@@ -25,9 +26,13 @@ async def lifespan(app: FastAPI):
     print("[APP] Starting InsightSQL...")
     pool = await init_db()
     await seed_all(pool)
+    # Start panel refresh background loop
+    from app.panels.router import panel_refresh_loop
+    refresh_task = asyncio.create_task(panel_refresh_loop())
     print("[APP] Ready.")
     yield
     # Shutdown
+    refresh_task.cancel()
     from app.agent.llm import close_client
     await close_client()
     await close_db()
@@ -87,3 +92,45 @@ async def health_check():
         "database": "connected",
         "pg_version": version,
     }
+
+
+class AdhocAskRequest(BaseModel):
+    question: str
+
+
+@app.post("/api/ask")
+async def adhoc_ask(body: AdhocAskRequest):
+    """Ad-hoc Text-to-SQL question — works without an active incident.
+
+    Creates a unique incident so the full investigation
+    pipeline (schema grounding → SQL gen → validation → execution)
+    runs identically, and results stream via WebSocket to the AI panel.
+    """
+    import uuid
+    from app.agent.text_to_sql import investigate
+
+    question = body.question.strip()
+    if not question:
+        raise HTTPException(status_code=422, detail="question is required")
+
+    pool = await get_pool()
+
+    # Create a unique incident per request so concurrent queries don't clobber
+    incident_id = f"adhoc-{uuid.uuid4().hex[:8]}"
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """INSERT INTO ops.incidents (incident_id, title, severity, status)
+               VALUES ($1, 'Ad-hoc investigation', 'info', 'active')
+               ON CONFLICT (incident_id) DO UPDATE SET status = 'active'""",
+            incident_id,
+        )
+
+    # Broadcast so frontend picks up the context
+    await manager.broadcast("incident_created", {
+        "incident_id": incident_id,
+        "title": "Ad-hoc investigation",
+        "severity": "info",
+    })
+
+    result = await investigate(pool, incident_id, question)
+    return result
