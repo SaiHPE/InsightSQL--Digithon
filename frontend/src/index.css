@@ -841,36 +841,100 @@ a:hover {
   backdrop-filter: blur(12px);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-lg);
-  padding: var(--space-md);
-  min-width: 300px;
+  padding: var(--space-sm);
+  min-width: 280px;
   box-shadow: 0 12px 48px rgba(0,0,0,0.5);
   transform-origin: bottom right;
 }
 
-.demo-btns {
+/* 2×2 button grid */
+.demo-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-xxs);
+  margin-bottom: var(--space-xs);
+}
+
+.demo-trigger {
   display: flex;
-  gap: var(--space-sm);
-  margin-bottom: var(--space-md);
+  align-items: center;
+  gap: var(--space-xxs);
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  background: var(--bg-back);
+  border: 1px solid var(--border-weak);
+  color: var(--text-default);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--duration-micro) var(--ease-out);
+}
+.demo-trigger:hover:not(:disabled) {
+  background: var(--bg-floating);
+  border-color: var(--hpe-green);
+  color: var(--text-strong);
+}
+.demo-trigger:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.demo-trigger.active {
+  border-color: var(--hpe-green);
+  background: rgba(1, 169, 130, 0.08);
+  color: var(--hpe-green);
+}
+.demo-trigger.done {
+  border-color: rgba(1, 169, 130, 0.3);
+  color: var(--hpe-green);
+  opacity: 0.7;
+}
+
+.demo-trigger-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-full);
+  background: rgba(255,255,255,0.06);
+  font-size: 11px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.demo-trigger.done .demo-trigger-num {
+  background: rgba(1, 169, 130, 0.15);
+}
+.demo-trigger.active .demo-trigger-num {
+  background: rgba(1, 169, 130, 0.15);
+}
+
+.demo-trigger-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.demo-reset {
+  width: 100%;
+  font-size: 12px;
+  padding: 6px 12px;
+}
+
+.demo-status {
+  margin-top: var(--space-xs);
+  padding: var(--space-xxs) var(--space-xs);
+  background: var(--bg-back);
+  border-radius: var(--radius-sm);
 }
 
 .demo-title {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
   color: var(--text-strong);
-  margin-bottom: var(--space-xxs);
   display: flex;
   align-items: center;
   gap: var(--space-xs);
-}
-
-.demo-talk {
-  font-size: 13px;
-  color: var(--text-default);
-  font-style: italic;
-  line-height: 1.5;
-  background: var(--bg-back);
-  padding: var(--space-sm);
-  border-radius: var(--radius-sm);
 }
 
 /* === BUTTONS (HPE Primary/Secondary/Default/Ghost) === */
