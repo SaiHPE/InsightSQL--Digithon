@@ -11,7 +11,7 @@ const initialState = {
   panels: [],
   panelHealing: {},
   topology: { nodes: [], edges: [] },
-  demo: { phase: 'idle', phaseNumber: 0, title: 'Ready', talkingPoint: 'Click Run Demo to begin.' },
+  demo: { phase: 'idle', phaseNumber: 0, title: 'Ready', talkingPoint: 'Trigger an incident to begin.' },
   latestMetrics: {},
   // New fields
   eventLog: [],
@@ -34,6 +34,11 @@ function reducer(state, action) {
         ...state,
         currentIncident: action.payload,
         incidents: [...state.incidents, action.payload],
+        // Clear previous investigation state for fresh incident
+        agentSteps: [],
+        evidence: [],
+        rca: null,
+        actions: [],
         eventLog: appendLog(state, 'alert', `Incident created: ${action.payload.title}`, action.payload.started_at),
       };
 
@@ -113,7 +118,6 @@ function reducer(state, action) {
       return {
         ...state,
         evidence: [...state.evidence, action.payload],
-        agentSteps: [], // Clear agent steps after evidence is collected
         eventLog: appendLog(state, 'evidence',
           `Evidence collected: "${action.payload.question}" → ${action.payload.row_count} rows`),
       };
@@ -238,6 +242,15 @@ function reducer(state, action) {
     case 'SET_PANELS':
       return { ...state, panels: action.payload };
 
+    case 'SET_BASELINE': {
+      const { timeline, latest } = action.payload;
+      return {
+        ...state,
+        metricsTimeline: timeline || [],
+        latestMetrics: latest || {},
+      };
+    }
+
     case 'RESET':
       return { ...initialState };
 
@@ -259,9 +272,10 @@ export default function useDashboardState() {
   const loadInitialData = useCallback(async () => {
     try {
       const apiBase = import.meta.env.VITE_API_URL || window.location.origin;
-      const [topoRes, panelsRes] = await Promise.all([
+      const [topoRes, panelsRes, metricsRes] = await Promise.all([
         fetch(`${apiBase}/api/topology`),
         fetch(`${apiBase}/api/panels`),
+        fetch(`${apiBase}/api/topology/metrics-baseline`),
       ]);
       if (!topoRes.ok) throw new Error(`Topology fetch failed: ${topoRes.status}`);
       if (!panelsRes.ok) throw new Error(`Panels fetch failed: ${panelsRes.status}`);
@@ -269,6 +283,11 @@ export default function useDashboardState() {
       const panels = await panelsRes.json();
       dispatch({ type: 'SET_TOPOLOGY', payload: topology });
       dispatch({ type: 'SET_PANELS', payload: panels });
+      // Load baseline metrics for chart + KPI cards
+      if (metricsRes.ok) {
+        const metrics = await metricsRes.json();
+        dispatch({ type: 'SET_BASELINE', payload: metrics });
+      }
     } catch (e) {
       console.error('[Dashboard] Failed to load initial data:', e);
     }

@@ -63,5 +63,5 @@ export default function useWebSocket() {
     }
   }, []);
 
-  return { isConnected, lastMessage, sendMessage };
+  return { isConnected, lastMessage, sendMessage, retryCount: retriesRef.current };
 }

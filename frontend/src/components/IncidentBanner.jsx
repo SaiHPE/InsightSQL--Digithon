@@ -9,7 +9,7 @@ export default function IncidentBanner({ incident, rca }) {
     return () => clearInterval(t);
   }, [incident?.incident_id]);
 
-  const impact = Math.round((elapsed / 60) * (incident.impact_per_min_usd || 11800));
+  const impact = Math.round((elapsed / 60) * (incident.impact_per_min_usd || 0));
   const confidence = rca?.confidence != null ? Math.round(rca.confidence * 100) : null;
 
   // Map backend severity to HPE Status tokens

@@ -354,12 +354,27 @@ a:hover {
   border-radius: var(--radius-md);
   padding: var(--space-md);
   transition: transform var(--duration-micro) var(--ease-out),
-              background var(--duration-micro) var(--ease-out);
+              background var(--duration-micro) var(--ease-out),
+              border-color 0.4s var(--ease-out),
+              box-shadow 0.4s var(--ease-out);
   position: relative;
 }
 .kpi:hover {
   background: var(--bg-floating);
   transform: translateY(-2px);
+}
+.kpi.warn {
+  border-color: var(--status-warning);
+  box-shadow: 0 0 12px rgba(255, 188, 68, 0.15);
+}
+.kpi.crit {
+  border-color: var(--status-critical);
+  box-shadow: 0 0 12px rgba(252, 97, 97, 0.2);
+  animation: kpi-flash 0.6s ease-out;
+}
+@keyframes kpi-flash {
+  0%   { background: rgba(252, 97, 97, 0.15); }
+  100% { background: var(--bg-front); }
 }
 
 .kpi-header {
