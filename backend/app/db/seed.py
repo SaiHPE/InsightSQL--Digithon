@@ -2,7 +2,26 @@
 
 import asyncpg
 import random
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, date
+
+
+async def _ensure_metric_partitions(pool: asyncpg.Pool):
+    """Create daily partitions for metrics_norm covering the seed data range.
+
+    Seed functions insert data going back up to 30 days (capacity history)
+    and 2 hours (baseline metrics). We need partitions for each calendar day
+    in that range, plus a buffer day ahead.
+    """
+    today = datetime.now(timezone.utc).date()
+    # Cover 32 days back (capacity history goes 30 days + timezone buffer) + 2 days forward
+    days = [today + timedelta(days=d) for d in range(-32, 3)]
+
+    async with pool.acquire() as conn:
+        for day in days:
+            await conn.execute(
+                "SELECT ops.create_metrics_partition($1::date)", day
+            )
+    print(f"[SEED] Ensured {len(days)} metric partitions exist.")
 
 
 async def seed_all(pool: asyncpg.Pool):
@@ -18,6 +37,9 @@ async def seed_all(pool: asyncpg.Pool):
 
             await _seed_resources(conn)
             await _seed_topology(conn)
+
+    # Ensure metric partitions cover the full seed date range
+    await _ensure_metric_partitions(pool)
 
     # These use their own connections for bulk inserts
     await seed_baseline_metrics(pool)

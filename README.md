@@ -60,25 +60,41 @@ InsightSQL is a **live operations dashboard** for HPE GreenLake-hosted SAP envir
 ### Prerequisites
 - Python 3.12+ with [uv](https://docs.astral.sh/uv/)
 - Node.js 18+
-- PostgreSQL 16 instance
+- PostgreSQL 16 instance (with connection details configured in `.env`)
 
-### Backend
+### 1. Setup (first time only)
+
 ```bash
+# Backend — install Python dependencies
 cd backend
-cp .env.example .env  # Fill in your Azure OpenAI credentials
-uv sync
-uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+cp .env.example .env          # Fill in your Azure OpenAI credentials & DATABASE_URL
+uv sync                       # Install Python dependencies into .venv
+
+# Frontend — install Node dependencies
+cd ../frontend
+npm install                   # Install Node.js dependencies
 ```
 
-### Frontend
+### 2. Start Backend (Terminal 1)
+
+```bash
+cd backend
+uv run uvicorn app.main:app --reload
+```
+
+The backend starts on **http://localhost:8000**. On first run it applies the DB schema and seeds baseline data automatically.
+
+### 3. Start Frontend (Terminal 2)
+
 ```bash
 cd frontend
-npm install
 npm run dev
 ```
 
-### Run Demo
-Click **Run Demo** in the bottom-right corner, or:
+The frontend starts on **http://localhost:5173** and proxies API/WebSocket requests to the backend automatically (configured in `vite.config.js`).
+
+### 4. Run Demo
+Open **http://localhost:5173** in your browser and click **Run Demo** in the bottom-right corner, or trigger via API:
 ```bash
 curl -X POST http://localhost:8000/api/demo/start
 ```
