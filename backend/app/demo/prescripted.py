@@ -6,7 +6,7 @@
 
 INVESTIGATION_QUERIES = {
     "storage_correlation": {
-        "question": "Which storage resource correlates most with SAP PRD response time degradation?",
+        "question": "Show SAP PRD response time alongside storage latency on the log volume over the last 15 minutes, grouped by minute.",
         "sql": """SELECT
     date_trunc('minute', m1.metric_ts) AS minute,
     round(avg(m1.metric_value)::numeric, 1) AS sap_p95_ms,
@@ -29,7 +29,7 @@ ORDER BY 1 DESC
 LIMIT 10""",
     },
     "backup_check": {
-        "question": "Was a HANA backup running during the SAP PRD slowdown?",
+        "question": "Are there any SAP HANA backups for SID PRD that started in the last 30 minutes? Show their start time, status, and type.",
         "sql": """SELECT
     b.backup_id,
     b.sid,
@@ -44,7 +44,7 @@ WHERE b.sid = 'PRD'
 ORDER BY b.started_at DESC""",
     },
     "compute_vs_storage": {
-        "question": "Is the slowdown caused by storage contention or compute degradation?",
+        "question": "Compare average CPU utilization, temperature, and storage latency for each host and storage resource over the last 15 minutes.",
         "sql": """SELECT
     r.display_name,
     r.resource_type,
@@ -60,7 +60,7 @@ GROUP BY r.display_name, r.resource_type
 ORDER BY r.resource_type, r.display_name""",
     },
     "host_health": {
-        "question": "Which host is degraded and what is the failure mode?",
+        "question": "List all critical and warning events for hosts in the last 30 minutes, including severity, summary, and timestamp.",
         "sql": """SELECT
     e.resource_id,
     r.display_name,
@@ -79,7 +79,7 @@ ORDER BY e.event_ts DESC
 LIMIT 5""",
     },
     "capacity_trend": {
-        "question": "What is the storage capacity trend over the last 30 days?",
+        "question": "Show the daily average storage used percentage for the Primera array over the last 30 days, ordered by date.",
         "sql": """SELECT
     date_trunc('day', m.metric_ts) AS day,
     round(avg(m.metric_value)::numeric, 1) AS used_pct
@@ -91,7 +91,7 @@ GROUP BY 1
 ORDER BY 1""",
     },
     "backup_volume_growth": {
-        "question": "Which volume has the highest capacity usage?",
+        "question": "Show the latest storage used percentage for each volume, and how many retained backups exist per SID.",
         "sql": """SELECT
     r.display_name,
     r.resource_id,

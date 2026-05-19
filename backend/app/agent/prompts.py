@@ -50,7 +50,19 @@ SCHEMA_MAP:
 
 INVESTIGATION_SQL_USER = """Question: {question}
 Time range: last {time_range_minutes} minutes
-Context: SAP SID = PRD, Storage Array = primera-prod-01, Hosts = prd-hana-01, prd-hana-02"""
+
+Resource IDs (use these exact values in WHERE clauses):
+- SAP SID: 'sap_sid:PRD'
+- Hosts: 'host:prd-hana-01', 'host:prd-hana-02'
+- Storage array: 'array:primera-prod-01'
+- Volumes: 'volume:hana_log_lun_01', 'volume:hana_data_lun_01', 'volume:hana_backup_lun_01'
+
+Metric names in ops.metrics_norm (use these exact metric_name values):
+- SAP: 'sap.response.p95_ms'
+- Host: 'host.cpu.util_pct', 'host.temp.c', 'host.memory.util_pct'
+- Storage: 'storage.latency.ms', 'storage.iops', 'storage.queue_depth', 'storage.saturation.score', 'storage.used_pct'
+
+Backup data is in ops.sap_backups (columns: backup_id, sid, started_at, ended_at, status, backup_type, retained, bytes_written)."""
 
 
 # ============================================================
