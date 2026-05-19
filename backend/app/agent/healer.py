@@ -1,5 +1,6 @@
 """SQL healing engine — repairs broken dashboard panel queries using LLM + schema introspection."""
 
+import asyncio
 import json
 import time
 import asyncpg
@@ -19,6 +20,7 @@ async def heal_panel(pool: asyncpg.Pool, panel_id: str) -> dict:
         "panel_id": panel_id, "step": "loading", "status": "running",
         "detail": "Loading panel and broken query...",
     })
+    await asyncio.sleep(0.8)
 
     async with pool.acquire() as conn:
         panel = await conn.fetchrow(
@@ -54,11 +56,13 @@ async def heal_panel(pool: asyncpg.Pool, panel_id: str) -> dict:
         explain_result = await explain_query(pool, broken_sql)
         error_text = explain_result.error or "Unknown error"
     await manager.broadcast("panel_healing", {"panel_id": panel_id, "step": "diagnosing", "status": "complete", "detail": f"Error: {error_text}", "elapsed": round(time.time() - start_time, 2)})
+    await asyncio.sleep(0.8)
 
     # Step 3: Schema map
     await manager.broadcast("panel_healing", {"panel_id": panel_id, "step": "schema_lookup", "status": "running", "detail": "Querying current schema..."})
     schema_map = await build_schema_map(pool)
     await manager.broadcast("panel_healing", {"panel_id": panel_id, "step": "schema_lookup", "status": "complete", "detail": "Schema map built", "elapsed": round(time.time() - start_time, 2)})
+    await asyncio.sleep(0.8)
 
     # Step 4: LLM generates fix
     await manager.broadcast("panel_healing", {"panel_id": panel_id, "step": "generating_fix", "status": "running", "detail": "Generating corrected SQL..."})

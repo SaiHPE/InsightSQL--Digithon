@@ -1,10 +1,12 @@
-import { Activity, HardDrive, Thermometer, Cpu, ArrowUp, ArrowDown } from 'lucide-react';
+import { Activity, HardDrive, Thermometer, Cpu, ArrowUp, ArrowDown, Database, LayoutGrid } from 'lucide-react';
 
 const CARDS = [
   { key: 'sap_sid:PRD:sap.response.p95_ms', label: 'SAP P95 Response', unit: 'ms', baseline: 145, warn: 300, crit: 500, icon: Activity },
   { key: 'array:primera-prod-01:storage.latency.ms', label: 'Storage Latency', unit: 'ms', baseline: 2.1, warn: 5, crit: 8, icon: HardDrive },
   { key: 'host:prd-hana-02:host.temp.c', label: 'Host Temperature', unit: '°C', baseline: 40, warn: 55, crit: 65, icon: Thermometer },
   { key: 'host:prd-hana-02:host.cpu.util_pct', label: 'Host CPU', unit: '%', baseline: 45, warn: 70, crit: 85, icon: Cpu },
+  { key: 'array:primera-prod-01:storage.used_pct', label: 'Storage Capacity', unit: '%', baseline: 65, warn: 80, crit: 90, icon: Database },
+  { key: 'host:prd-hana-02:host.memory.util_pct', label: 'Memory Usage', unit: '%', baseline: 58, warn: 75, crit: 90, icon: LayoutGrid },
 ];
 
 export default function MetricCards({ latestMetrics }) {

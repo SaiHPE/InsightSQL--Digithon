@@ -8,11 +8,8 @@ import NarratorBar from './components/NarratorBar';
 import TimelineChart from './components/TimelineChart';
 import TopologyGraph from './components/TopologyGraph';
 import EventLog from './components/EventLog';
-import AIReasoningChain from './components/AIReasoningChain';
-import EvidencePanel from './components/EvidencePanel';
-import PanelHealth from './components/PanelHealth';
-import RCANarrative from './components/RCANarrative';
-import ActionPanel from './components/ActionPanel';
+import DashboardPanels from './components/DashboardPanels';
+import AIPanel from './components/AIPanel';
 import ChatInput from './components/ChatInput';
 import DemoControl from './components/DemoControl';
 
@@ -40,19 +37,19 @@ export default function App() {
 
   // Watch for data changes and trigger section glows
   useEffect(() => {
-    if (state.agentSteps.length > 0) triggerGlow('reasoning');
+    if (state.agentSteps.length > 0) triggerGlow('ai');
   }, [state.agentSteps.length, triggerGlow]);
 
   useEffect(() => {
-    if (state.evidence.length > 0) triggerGlow('evidence');
+    if (state.evidence.length > 0) triggerGlow('ai');
   }, [state.evidence.length, triggerGlow]);
 
   useEffect(() => {
-    if (state.rca) triggerGlow('rca');
+    if (state.rca) triggerGlow('ai');
   }, [state.rca, triggerGlow]);
 
   useEffect(() => {
-    if (state.actions.length > 0) triggerGlow('actions');
+    if (state.actions.length > 0) triggerGlow('ai');
   }, [state.actions.length, triggerGlow]);
 
   useEffect(() => {
@@ -93,7 +90,7 @@ export default function App() {
             <IncidentBanner incident={state.currentIncident} rca={state.rca} />
           )}
 
-          {/* KPI Cards */}
+          {/* KPI Cards — 6 cards */}
           <MetricCards latestMetrics={state.latestMetrics} />
 
           {/* Row 1: Timeline (wide) + Topology (sidebar) */}
@@ -106,30 +103,26 @@ export default function App() {
             </div>
           </div>
 
-          {/* Row 2: AI Investigation — 3 columns */}
-          <div className="dash-row-investigate">
-            <div id="section-reasoning" className={`dash-col-sm ${g('reasoning')}`}>
-              <AIReasoningChain steps={state.agentSteps} />
+          {/* Row 2: Live Dashboard Panels + AI Investigation */}
+          <div className="dash-row-panels">
+            <div id="section-panels" className={`dash-col-panels ${g('panels')}`}>
+              <DashboardPanels
+                panels={state.panels}
+                panelData={state.panelData}
+                healing={state.panelHealing}
+              />
             </div>
-            <div id="section-evidence" className={`dash-col-md ${g('evidence')}`}>
-              <EvidencePanel evidence={state.evidence} />
-            </div>
-            <div className="dash-col-sm" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
-              <div id="section-rca" className={g('rca')}>
-                <RCANarrative rca={state.rca} />
-              </div>
-              <div id="section-actions" className={g('actions')}>
-                <ActionPanel actions={state.actions} />
-              </div>
+            <div id="section-ai" className={`dash-col-ai ${g('ai')}`}>
+              <AIPanel
+                steps={state.agentSteps}
+                evidence={state.evidence}
+                rca={state.rca}
+                actions={state.actions}
+              />
             </div>
           </div>
 
-          {/* Row 3: Panel Health (full width) */}
-          <div id="section-panels" className={g('panels')}>
-            <PanelHealth panels={state.panels} healing={state.panelHealing} />
-          </div>
-
-          {/* Row 4: Event Log + Chat */}
+          {/* Row 3: Event Log + Chat */}
           <div className="dash-row-bottom">
             <EventLog events={state.eventLog} />
             <ChatInput

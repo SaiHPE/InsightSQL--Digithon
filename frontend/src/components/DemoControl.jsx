@@ -114,6 +114,10 @@ export default function DemoControl({ demo }) {
             <RotateCcw size={14} /> Reset
           </button>
           {error && <div style={{ color: 'var(--status-critical)', fontSize: 12, marginTop: 'var(--space-xxs)' }}>{error}</div>}
+          <div className="demo-progress">
+            <div className="demo-progress-bar" style={{ width: `${(completed.size / INCIDENTS.length) * 100}%` }} />
+          </div>
+          <div className="demo-progress-label">{completed.size}/{INCIDENTS.length} scenarios complete</div>
         </div>
       )}
       <button

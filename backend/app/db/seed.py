@@ -142,6 +142,7 @@ async def seed_baseline_metrics(pool: asyncpg.Pool):
         rows.append((ts, "array:primera-prod-01", "storage.iops", 8000 + random.uniform(0, 4000), "iops"))
         rows.append((ts, "array:primera-prod-01", "storage.queue_depth", 4 + random.uniform(0, 4), "count"))
         rows.append((ts, "array:primera-prod-01", "storage.saturation.score", 15 + random.uniform(0, 10), "%"))
+        rows.append((ts, "array:primera-prod-01", "storage.used_pct", 87 + random.uniform(-1, 2), "%"))
 
         # Volume metrics - normal
         for vol_id in ["volume:hana_log_lun_01", "volume:hana_data_lun_01", "volume:hana_backup_lun_01"]:
@@ -277,7 +278,7 @@ async def seed_dashboard_panels(pool: asyncpg.Pool):
                       JOIN ops.resources r ON r.resource_id = m.resource_id
                       WHERE r.resource_type = 'host'
                         AND m.metric_name = 'host.cpu.util_pct'
-                        AND m.metric_ts >= now() - interval '30 minutes'
+                        AND m.metric_ts >= now() - interval '2 hours'
                       GROUP BY r.display_name
                       ORDER BY value DESC""",
         },
@@ -298,7 +299,7 @@ async def seed_dashboard_panels(pool: asyncpg.Pool):
                       FROM ops.metrics_norm m
                       JOIN ops.resources r ON r.resource_id = m.resource_id
                       WHERE r.resource_type = 'volume'
-                        AND m.metric_ts >= now() - interval '30 minutes'
+                        AND m.metric_ts >= now() - interval '2 hours'
                       GROUP BY r.display_name
                       ORDER BY latency_ms DESC""",
         },
