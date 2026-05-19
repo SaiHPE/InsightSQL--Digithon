@@ -23,8 +23,13 @@ export default function App() {
     <div className="app">
       <Header isConnected={isConnected} />
 
-      <div className="main">
+      <main className="main" role="main">
         <div className="main-inner">
+          {/* Page Header (HPE Context) */}
+          <div className="page-header">
+            <h1 className="page-title">Operations Dashboard</h1>
+          </div>
+
           {state.currentIncident && (
             <IncidentBanner incident={state.currentIncident} rca={state.rca} />
           )}
@@ -35,7 +40,7 @@ export default function App() {
 
           <div className="cols-sidebar">
             <TopologyGraph topology={state.topology} />
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
               <AIReasoningChain steps={state.agentSteps} />
               <EvidencePanel evidence={state.evidence} />
             </div>
@@ -46,7 +51,7 @@ export default function App() {
             <PanelHealth panels={state.panels} healing={state.panelHealing} />
           </div>
         </div>
-      </div>
+      </main>
 
       <DemoControl demo={state.demo} />
     </div>

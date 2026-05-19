@@ -1,4 +1,4 @@
-import { Check, X, Loader, Circle } from 'lucide-react';
+import { Check, X, Circle, Loader2 } from 'lucide-react';
 
 const LABELS = {
   schema_grounding: 'Schema Grounding',
@@ -10,8 +10,15 @@ const LABELS = {
 
 const Dot = ({ status }) => {
   const cls = status === 'complete' ? 'ok' : status === 'failed' ? 'fail' : status === 'running' ? 'running' : 'pending';
-  const Icon = status === 'complete' ? Check : status === 'failed' ? X : status === 'running' ? Loader : Circle;
-  return <div className={`step-dot ${cls}`}><Icon size={9} /></div>;
+  
+  return (
+    <div className={`step-dot ${cls}`}>
+      {status === 'complete' && <Check size={12} aria-label="Complete" />}
+      {status === 'failed' && <X size={12} aria-label="Failed" />}
+      {status === 'running' && <Loader2 size={12} className="spinner" aria-label="Running" />}
+      {status === 'pending' && <Circle size={10} aria-label="Pending" />}
+    </div>
+  );
 };
 
 export default function AIReasoningChain({ steps }) {
@@ -33,7 +40,7 @@ export default function AIReasoningChain({ steps }) {
             {steps.map((s, i) => (
               <div key={`${s.step}-${i}`} className="step anim-in">
                 <Dot status={s.status} />
-                <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="step-content">
                   <div className="step-name">{LABELS[s.step] || s.step}</div>
                   <div className="step-detail">{s.detail}</div>
                 </div>

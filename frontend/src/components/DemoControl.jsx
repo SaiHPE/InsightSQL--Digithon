@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Play, RotateCcw, ChevronDown, ChevronUp } from 'lucide-react';
+import { Play, RotateCcw, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 
 export default function DemoControl({ demo }) {
   const [open, setOpen] = useState(true);
@@ -44,26 +44,35 @@ export default function DemoControl({ demo }) {
         <div className="demo-panel anim-in">
           <div className="demo-btns">
             <button className="btn btn-primary" onClick={start} disabled={loading || running}>
-              <Play size={13} /> {running ? 'Running…' : 'Run Demo'}
+              {loading || running ? <Loader2 size={16} className="spinner" /> : <Play size={16} />}
+              {running ? 'Running…' : 'Run Demo'}
             </button>
             <button className="btn btn-ghost" onClick={reset} disabled={loading}>
-              <RotateCcw size={13} /> Reset
+              <RotateCcw size={16} /> Reset
             </button>
           </div>
           {demo.phase !== 'idle' && (
-            <>
+            <div className="anim-in">
               <div className="demo-title">
-                {demo.phaseNumber > 0 && `${'●'.repeat(demo.phaseNumber)}${'○'.repeat(Math.max(0, 3 - demo.phaseNumber))} `}
+                {demo.phaseNumber > 0 && (
+                  <span style={{ color: 'var(--hpe-green)' }}>
+                    {`${'●'.repeat(demo.phaseNumber)}${'○'.repeat(Math.max(0, 3 - demo.phaseNumber))} `}
+                  </span>
+                )}
                 {demo.title}
               </div>
               <div className="demo-talk">"{demo.talkingPoint}"</div>
-            </>
+            </div>
           )}
-          {error && <div style={{ color: '#ff4d4f', fontSize: 11, marginTop: 4 }}>{error}</div>}
+          {error && <div style={{ color: 'var(--status-critical)', fontSize: 12, marginTop: 'var(--space-xxs)' }}>{error}</div>}
         </div>
       )}
-      <button className="btn btn-ghost btn-round" onClick={() => setOpen(!open)}>
-        {open ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+      <button 
+        className="btn btn-round" 
+        onClick={() => setOpen(!open)}
+        aria-label={open ? "Close Demo Panel" : "Open Demo Panel"}
+      >
+        {open ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
       </button>
     </div>
   );
