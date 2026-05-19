@@ -23,8 +23,9 @@ class Settings(BaseSettings):
     ]
 
     # Ollama Fallback
-    ollama_endpoint: str = "http://10.25.41.176:11434/v1"
-    ollama_model: str = "nemotron-cascade-2:30b"
+    ollama_fallback_enabled: bool = False
+    ollama_endpoint: str = ""
+    ollama_model: str = ""
 
     # Webhook authentication
     webhook_api_key: str = ""

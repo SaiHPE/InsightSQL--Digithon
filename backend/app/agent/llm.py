@@ -3,7 +3,7 @@
 import asyncio
 import itertools
 import logging
-from openai import AsyncAzureOpenAI, APIStatusError, APITimeoutError, APIConnectionError
+from openai import AsyncAzureOpenAI, APIStatusError, APITimeoutError, APIConnectionError, OpenAIError
 
 from app.config import get_settings
 
@@ -75,8 +75,10 @@ async def _call_with_failover(messages, temperature, max_completion_tokens, resp
     settings = get_settings()
     num_deployments = len(settings.azure_openai_deployments)
     if num_deployments == 0:
-        raise ValueError("No Azure OpenAI deployments configured in azure_openai_deployments")
-    client = await _get_client()
+        _logger.warning("No Azure deployments configured; attempting Ollama fallback")
+        client = None
+    else:
+        client = await _get_client()
     last_error = None
 
     for _ in range(num_deployments):
@@ -98,6 +100,11 @@ async def _call_with_failover(messages, temperature, max_completion_tokens, resp
             continue
 
     # Fallback to Ollama if all Azure deployments fail
+    if not getattr(settings, "ollama_fallback_enabled", False):
+        if num_deployments == 0:
+            raise ValueError("No Azure deployments configured and Ollama fallback is disabled.")
+        raise last_error or ValueError("All Azure deployments failed and Ollama fallback is disabled.")
+
     _logger.warning("All Azure deployments exhausted or failed. Falling back to Ollama model %s", settings.ollama_model)
     try:
         from openai import AsyncOpenAI
@@ -106,13 +113,18 @@ async def _call_with_failover(messages, temperature, max_completion_tokens, resp
             base_url=settings.ollama_endpoint,
             api_key="ollama" # required by the OpenAI client but ignored by Ollama
         )
-        kwargs = dict(model=settings.ollama_model, messages=messages, temperature=temperature, max_completion_tokens=max_completion_tokens)
-        if response_format:
-            kwargs["response_format"] = response_format
-        return await ollama_client.chat.completions.create(**kwargs)
-    except Exception as e:
+        try:
+            kwargs = dict(model=settings.ollama_model, messages=messages, temperature=temperature, max_completion_tokens=max_completion_tokens)
+            if response_format:
+                kwargs["response_format"] = response_format
+            return await ollama_client.chat.completions.create(**kwargs)
+        finally:
+            await ollama_client.close()
+    except OpenAIError as e:
         _logger.error("Ollama fallback failed as well: %s", e)
-        raise e if last_error is None else last_error
+        if last_error is not None:
+            raise last_error from e
+        raise e
 
 
 async def generate_sql(system_prompt: str, user_prompt: str, temperature: float = 0.1) -> str:

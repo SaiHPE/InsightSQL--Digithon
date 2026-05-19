@@ -33,6 +33,7 @@ fi
 echo ""
 
 echo "--- 4. Probing Common Local API Endpoints ---"
+if command -v curl &> /dev/null; then
 
 # Probe vLLM / Standard OpenAI compatible port (8000)
 echo "-> Probing http://localhost:8000/v1/models (vLLM / Triton / FastAPI)..."
@@ -55,6 +56,10 @@ fi
 # Probe Text Generation Inference (TGI) or other common port (8080)
 echo "-> Probing http://localhost:8080/info (TGI / vLLM alternate)..."
 curl -s -f --max-time 2 http://localhost:8080/info || echo "   Endpoint unreachable."
+
+else
+    echo "curl not found. Skipping API endpoint probing."
+fi
 echo ""
 
 echo "=========================================="
