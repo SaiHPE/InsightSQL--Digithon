@@ -20,7 +20,7 @@ export default function MetricCards({ latestMetrics }) {
         const Icon = c.icon;
 
         return (
-          <div key={c.key} className={`kpi ${status} anim-in delay-${idx + 1}`}>
+          <div key={`${c.key}-${status}`} className={`kpi ${status} anim-in delay-${idx + 1}`}>
             <div className="kpi-header">
               <span className="kpi-label">{c.label}</span>
               <Icon size={16} className="kpi-icon" aria-hidden="true" />

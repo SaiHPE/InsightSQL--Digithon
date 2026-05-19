@@ -39,10 +39,6 @@ export default function NarratorBar({ demo }) {
 
   if (demo.phase === 'idle') return null;
 
-  const dots = demo.phaseNumber > 0
-    ? `${'●'.repeat(demo.phaseNumber)}${'○'.repeat(Math.max(0, 4 - demo.phaseNumber))}`
-    : '';
-
   return (
     <div className="narrator-bar anim-in" role="status" aria-live="polite">
       <div className="narrator-indicator">
@@ -52,7 +48,6 @@ export default function NarratorBar({ demo }) {
 
       <div className="narrator-content">
         <div className="narrator-title">
-          {dots && <span className="narrator-dots">{dots}</span>}
           <ChevronRight size={14} aria-hidden="true" />
           <span>{demo.title}</span>
         </div>

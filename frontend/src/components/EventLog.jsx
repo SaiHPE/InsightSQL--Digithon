@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useReducer } from 'react';
 import {
   AlertCircle, Activity, Database, Brain,
   Wrench, Cpu, HardDrive, Search, Zap,
@@ -34,12 +34,23 @@ function formatTime(ts) {
   if (!ts) return '';
   try {
     const d = new Date(ts);
-    return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+    const diff = Math.round((Date.now() - d.getTime()) / 1000);
+    if (diff < 5) return 'just now';
+    if (diff < 60) return `${diff}s ago`;
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+    return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
   } catch { return ''; }
 }
 
 export default function EventLog({ events = [] }) {
   const scrollRef = useRef(null);
+
+  // Periodic re-render to keep relative timestamps fresh
+  const [, tick] = useReducer(x => x + 1, 0);
+  useEffect(() => {
+    const t = setInterval(tick, 5000);
+    return () => clearInterval(t);
+  }, []);
 
   // Auto-scroll to latest
   useEffect(() => {

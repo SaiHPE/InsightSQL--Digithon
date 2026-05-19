@@ -14,7 +14,7 @@ from app.agent.healer import heal_panel
 
 
 async def run_full_demo(pool: asyncpg.Pool):
-    """Run the full 3-incident demo sequence."""
+    """Run the full 4-incident demo sequence."""
     try:
         await manager.broadcast("demo_phase", {
             "phase": "starting", "phase_number": 0,
@@ -51,10 +51,26 @@ async def incident_1_sap_slowdown(pool: asyncpg.Pool):
     now = datetime.now(timezone.utc)
     incident_id = "INC-001"
 
+    # Insert running backup FIRST — backup is the root cause, must be visible before alert
+    backup_start = now - timedelta(minutes=2)
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """INSERT INTO ops.sap_backups (backup_id, sid, started_at, status, backup_type)
+               VALUES ('backup-incident-001', 'PRD', $1, 'running', 'data')
+               ON CONFLICT DO NOTHING""",
+            backup_start,
+        )
+    await manager.broadcast("backup_started", {
+        "backup_id": "backup-incident-001",
+        "started_at": backup_start.isoformat(),
+        "backup_type": "data",
+    })
+    await asyncio.sleep(2)
+
     await manager.broadcast("demo_phase", {
         "phase": "incident_1", "phase_number": 1,
         "title": "Incident 1: SAP Slowdown",
-        "talking_point": "A Grafana alert fires — SAP response time spiked to 842ms, 6x the baseline.",
+        "talking_point": "A HANA backup is running. Now a Grafana alert fires — SAP response time spiked to 842ms.",
     })
     await asyncio.sleep(2)
 
@@ -138,22 +154,6 @@ async def incident_1_sap_slowdown(pool: asyncpg.Pool):
         "summary": "Array latency elevated",
     })
 
-    # Insert running backup
-    backup_start = now - timedelta(minutes=2)
-    async with pool.acquire() as conn:
-        await conn.execute(
-            """INSERT INTO ops.sap_backups (backup_id, sid, started_at, status, backup_type)
-               VALUES ('backup-incident-001', 'PRD', $1, 'running', 'data')
-               ON CONFLICT DO NOTHING""",
-            backup_start,
-        )
-
-    # Broadcast backup event for timeline overlay
-    await manager.broadcast("backup_started", {
-        "backup_id": "backup-incident-001",
-        "started_at": backup_start.isoformat(),
-        "backup_type": "data",
-    })
     await asyncio.sleep(3)
 
     # AI Investigation 1
@@ -209,7 +209,23 @@ async def incident_1_sap_slowdown(pool: asyncpg.Pool):
 async def incident_2_compute_degradation(pool: asyncpg.Pool):
     """Incident 2: Host thermal throttling on prd-hana-02."""
     now = datetime.now(timezone.utc)
-    incident_id = "INC-001"
+    incident_id = "INC-002"
+
+    # Create incident with its own ID
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """INSERT INTO ops.incidents (incident_id, title, severity, status, impact_per_min_usd)
+               VALUES ($1, $2, 'critical', 'active', 8500)
+               ON CONFLICT (incident_id) DO UPDATE SET status = 'active', severity = 'critical'""",
+            incident_id, "Host thermal throttling — prd-hana-02",
+        )
+
+    await manager.broadcast("incident_created", {
+        "incident_id": incident_id,
+        "title": "Host thermal throttling — prd-hana-02",
+        "severity": "critical",
+        "impact_per_min_usd": 8500,
+    })
 
     await manager.broadcast("demo_phase", {
         "phase": "incident_2", "phase_number": 2,
@@ -342,7 +358,7 @@ async def incident_3_sql_self_heal(pool: asyncpg.Pool):
 async def incident_4_capacity_drift(pool: asyncpg.Pool):
     """Incident 4: GreenLake capacity forecast breach — storage trending full."""
     now = datetime.now(timezone.utc)
-    incident_id = "INC-002"
+    incident_id = "INC-004"
 
     await manager.broadcast("demo_phase", {
         "phase": "incident_4", "phase_number": 4,

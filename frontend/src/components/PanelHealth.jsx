@@ -62,30 +62,36 @@ function HealStepChain({ steps = [] }) {
 
 export default function PanelHealth({ panels = [], healing }) {
   const healingEntries = Object.values(healing || {});
+  const allHealthy = panels.length > 0 && panels.every(p => p.status === 'active');
+  const hasActivity = healingEntries.length > 0 || !allHealthy;
 
   return (
     <div className="section">
       <div className="section-head">
         <span className="section-title">Panel Health</span>
+        {allHealthy && <span className="badge badge-ok">{panels.length}/{panels.length} healthy ✓</span>}
         {healingEntries.some(h => h.status === 'healed') && <span className="badge badge-ok">Self-Healed</span>}
         {healingEntries.some(h => h.steps?.some(s => s.status === 'running')) && <span className="badge badge-info">Healing…</span>}
       </div>
       <div className="section-body">
-        <div className="panel-grid">
-          {panels.map((p, idx) => (
-            <div key={p.panel_id} className={`ptile ${p.status === 'active' ? '' : p.status || ''} anim-in delay-${idx + 1}`}>
-              <div className="ptile-name">
-                {ICON[p.status] || <HelpCircle size={14} aria-label="Unknown" />} {p.panel_name}
+        {/* Only show full grid when there's something interesting */}
+        {hasActivity && (
+          <div className="panel-grid">
+            {panels.map((p, idx) => (
+              <div key={p.panel_id} className={`ptile ${p.status === 'active' ? '' : p.status || ''} anim-in delay-${idx + 1}`}>
+                <div className="ptile-name">
+                  {ICON[p.status] || <HelpCircle size={14} aria-label="Unknown" />} {p.panel_name}
+                </div>
+                <div className="ptile-status">
+                  {STATUS_LABEL[p.status]
+                    ? STATUS_LABEL[p.status](p)
+                    : <span style={{ color: 'var(--text-weak)' }}>{p.status || 'Unknown'}</span>
+                  }
+                </div>
               </div>
-              <div className="ptile-status">
-                {STATUS_LABEL[p.status]
-                  ? STATUS_LABEL[p.status](p)
-                  : <span style={{ color: 'var(--text-weak)' }}>{p.status || 'Unknown'}</span>
-                }
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
 
         {/* Healing step-by-step progress */}
         {healingEntries.map(h => {

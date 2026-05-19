@@ -9,7 +9,7 @@ export default function IncidentBanner({ incident, rca }) {
     return () => clearInterval(t);
   }, [incident?.incident_id]);
 
-  const impact = Math.round((elapsed / 60) * (incident.impact_per_min_usd || 11800));
+  const impact = Math.round((elapsed / 60) * (incident.impact_per_min_usd || 0));
   const confidence = rca?.confidence != null ? Math.round(rca.confidence * 100) : null;
 
   // Map backend severity to HPE Status tokens
@@ -28,7 +28,11 @@ export default function IncidentBanner({ incident, rca }) {
 
       <div className="banner-right">
         {confidence != null && <span>Confidence: <strong>{confidence}%</strong></span>}
-        <span className="impact-value">Impact: ${impact.toLocaleString()}</span>
+        {impact > 0 ? (
+          <span className="impact-value">Impact: ${impact.toLocaleString()}</span>
+        ) : incident.impact_per_min_usd > 0 ? (
+          <span className="impact-value" style={{ opacity: 0.6 }}>Impact: calculating…</span>
+        ) : null}
         <span>Duration: {Math.floor(elapsed / 60)}m {elapsed % 60}s</span>
       </div>
     </div>

@@ -113,15 +113,6 @@ export default function DemoControl({ demo }) {
           <button className="btn btn-ghost demo-reset" onClick={reset} disabled={isBusy}>
             <RotateCcw size={14} /> Reset
           </button>
-          {/* Phase info + talking point shown during active incident */}
-          {demo.phase !== 'idle' && demo.phase !== 'complete' && (
-            <div className="demo-status anim-in">
-              <div className="demo-title">{demo.title}</div>
-              {demo.talkingPoint && (
-                <div className="demo-talk">"{demo.talkingPoint}"</div>
-              )}
-            </div>
-          )}
           {error && <div style={{ color: 'var(--status-critical)', fontSize: 12, marginTop: 'var(--space-xxs)' }}>{error}</div>}
         </div>
       )}

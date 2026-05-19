@@ -109,7 +109,11 @@ export default function TopologyGraph({ topology }) {
         <span className="section-title">Infrastructure Topology</span>
       </div>
       <div style={{ padding: 'var(--space-xxs)', display: 'flex', justifyContent: 'center' }}>
-        <svg ref={svgRef} className="topo-svg" viewBox="0 0 320 360" style={{ height: 340, maxWidth: '100%' }} />
+        {topology.nodes.length > 0 ? (
+          <svg ref={svgRef} className="topo-svg" viewBox="0 0 320 360" style={{ height: 340, maxWidth: '100%' }} />
+        ) : (
+          <div className="empty" style={{ height: 340 }}>Initializing topology…</div>
+        )}
       </div>
     </div>
   );

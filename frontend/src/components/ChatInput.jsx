@@ -28,12 +28,13 @@ export default function ChatInput({ incidentId, isInvestigating }) {
   const inputRef = useRef(null);
   const apiBase = import.meta.env.VITE_API_URL || window.location.origin;
 
-  // Cycle through placeholder examples
+  // Cycle through placeholder examples only when an incident is active
   const [placeholderIdx, setPlaceholderIdx] = useState(0);
   useEffect(() => {
+    if (!incidentId) return;
     const t = setInterval(() => setPlaceholderIdx(i => (i + 1) % EXAMPLE_QUESTIONS.length), 4000);
     return () => clearInterval(t);
-  }, []);
+  }, [incidentId]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();

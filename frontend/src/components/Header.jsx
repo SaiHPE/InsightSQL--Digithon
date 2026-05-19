@@ -3,8 +3,6 @@ import { Menu, X } from 'lucide-react';
 
 const NAV_ITEMS = [
   { label: 'Dashboard', id: 'dashboard', active: true },
-  { label: 'Incidents', id: 'incidents' },
-  { label: 'Settings', id: 'settings' },
 ];
 
 export default function Header({ isConnected }) {
