@@ -43,6 +43,7 @@ class Settings(BaseSettings):
     # App
     app_name: str = "InsightSQL"
     ws_heartbeat_interval: int = 15  # seconds
+    cors_origins: str = "http://localhost:5173,http://localhost:5174"
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
