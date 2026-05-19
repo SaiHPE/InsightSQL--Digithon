@@ -196,6 +196,8 @@ a:hover {
   font-size: 14px;
   font-weight: 500;
   font-family: inherit;
+  -webkit-appearance: none;
+  appearance: none;
   background: none;
   border: none;
   padding: var(--space-xxs) var(--space-xs);
