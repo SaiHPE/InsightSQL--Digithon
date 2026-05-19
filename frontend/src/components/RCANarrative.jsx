@@ -11,13 +11,13 @@ export default function RCANarrative({ rca }) {
         {!data ? (
           <div className="empty">Awaiting investigation…</div>
         ) : (
-          <>
+          <div className="anim-in">
             <p className="rca-summary">{data.summary}</p>
 
             {data.hypotheses?.map((h, i) => (
               <div key={i} className="hypothesis">
                 <div className="hypothesis-title">{i + 1}. {h.cause}</div>
-                <div className="conf-bar">
+                <div className="conf-bar" aria-label={`Confidence ${Math.round((h.confidence || 0) * 100)}%`}>
                   <div className="conf-track">
                     <div className="conf-fill" style={{ width: `${(h.confidence || 0) * 100}%` }} />
                   </div>
@@ -31,17 +31,23 @@ export default function RCANarrative({ rca }) {
               </div>
             ))}
 
-            {data.impact && <div className="rca-impact"><strong>Impact:</strong> {data.impact}</div>}
+            {data.impact && (
+              <div className="rca-impact">
+                <strong>Impact:</strong> {data.impact}
+              </div>
+            )}
 
             {data.recommended_actions?.length > 0 && (
               <div className="rca-actions">
                 <div className="rca-actions-title">Recommended Actions</div>
                 {data.recommended_actions.map((a, i) => (
-                  <div key={i} className="rca-action">→ {a}</div>
+                  <div key={i} className="rca-action">
+                    <span style={{ color: 'var(--hpe-green)', fontWeight: 500 }}>{i + 1}.</span> {a}
+                  </div>
                 ))}
               </div>
             )}
-          </>
+          </div>
         )}
       </div>
     </div>
