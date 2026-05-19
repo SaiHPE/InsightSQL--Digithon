@@ -195,11 +195,22 @@ a:hover {
   text-decoration: none;
   font-size: 14px;
   font-weight: 500;
-  transition: color var(--duration-micro) var(--ease-out);
+  font-family: inherit;
+  background: none;
+  border: none;
+  padding: var(--space-xxs) var(--space-xs);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: color var(--duration-micro) var(--ease-out),
+              background var(--duration-micro) var(--ease-out);
 }
-.header-nav-link:hover, .header-nav-link.active {
+.header-nav-link:hover {
   color: var(--text-strong);
-  text-decoration: none;
+  background: rgba(255, 255, 255, 0.06);
+}
+.header-nav-link.active {
+  color: var(--text-strong);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .header-status {
