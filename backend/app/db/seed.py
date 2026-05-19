@@ -22,6 +22,7 @@ async def seed_all(pool: asyncpg.Pool):
     # These use their own connections for bulk inserts
     await seed_baseline_metrics(pool)
     await seed_baseline_backups(pool)
+    await seed_capacity_history(pool)
     await seed_dashboard_panels(pool)
     print("[SEED] All seed data loaded.")
 
@@ -176,6 +177,34 @@ async def seed_baseline_backups(pool: asyncpg.Pool):
             backups,
         )
     print(f"[SEED] Inserted {len(backups)} historical backup records.")
+
+
+async def seed_capacity_history(pool: asyncpg.Pool):
+    """Seed 30 days of storage capacity growth data for capacity drift scenario."""
+    now = datetime.now(timezone.utc)
+    rows = []
+
+    for day in range(30):
+        for hour in range(0, 24, 4):  # Every 4 hours
+            ts = now - timedelta(days=30 - day) + timedelta(hours=hour)
+            # Linear growth from 65% to ~89% over 30 days
+            base_pct = 65 + (24 * (day / 29))
+            noise = random.uniform(-0.5, 0.5)
+
+            rows.append((ts, "array:primera-prod-01", "storage.used_pct",
+                         round(base_pct + noise, 1), "%"))
+            # Backup volume grows faster (retention buildup)
+            backup_pct = 55 + (35 * (day / 29)) + noise
+            rows.append((ts, "volume:hana_backup_lun_01", "storage.used_pct",
+                         round(min(backup_pct, 95), 1), "%"))
+
+    async with pool.acquire() as conn:
+        await conn.executemany(
+            """INSERT INTO ops.metrics_norm (metric_ts, resource_id, metric_name, metric_value, unit)
+               VALUES ($1, $2, $3, $4, $5)""",
+            rows,
+        )
+    print(f"[SEED] Inserted {len(rows)} capacity history data points (30 days).")
 
 
 async def seed_dashboard_panels(pool: asyncpg.Pool):

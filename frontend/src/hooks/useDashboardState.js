@@ -1,4 +1,4 @@
-import { useReducer, useEffect, useCallback } from 'react';
+import { useReducer, useCallback } from 'react';
 
 const initialState = {
   incidents: [],
@@ -13,7 +13,19 @@ const initialState = {
   topology: { nodes: [], edges: [] },
   demo: { phase: 'idle', phaseNumber: 0, title: 'Ready', talkingPoint: 'Click Run Demo to begin.' },
   latestMetrics: {},
+  // New fields
+  eventLog: [],
+  actions: [],
+  backupWindows: [],
 };
+
+/**
+ * Append an entry to the event log.
+ * Each entry: { type, summary, ts, severity? }
+ */
+function appendLog(state, type, summary, ts) {
+  return [...state.eventLog.slice(-100), { type, summary, ts: ts || new Date().toISOString() }];
+}
 
 function reducer(state, action) {
   switch (action.type) {
@@ -22,6 +34,7 @@ function reducer(state, action) {
         ...state,
         currentIncident: action.payload,
         incidents: [...state.incidents, action.payload],
+        eventLog: appendLog(state, 'alert', `Incident created: ${action.payload.title}`, action.payload.started_at),
       };
 
     case 'incident_updated':
@@ -41,10 +54,25 @@ function reducer(state, action) {
 
       // Add to timeline for charts
       const timelineEntry = { ts: event_ts, resource_id, ...metrics };
+
+      // Detect significant metric spikes for event log
+      let newLog = state.eventLog;
+      const sapP95 = metrics['sap.response.p95_ms'];
+      const storageLat = metrics['storage.latency.ms'];
+      const hostTemp = metrics['host.temp.c'];
+      if (sapP95 && sapP95 > 500) {
+        newLog = appendLog(state, 'metric_spike', `SAP p95 spiked to ${Math.round(sapP95)}ms`, event_ts);
+      } else if (storageLat && storageLat > 8) {
+        newLog = appendLog({ ...state, eventLog: newLog }, 'storage', `Storage latency elevated: ${storageLat.toFixed(1)}ms on ${resource_id.split(':')[1]}`, event_ts);
+      } else if (hostTemp && hostTemp > 60) {
+        newLog = appendLog({ ...state, eventLog: newLog }, 'compute', `Host temperature ${Math.round(hostTemp)}°C on ${resource_id.split(':')[1]}`, event_ts);
+      }
+
       return {
         ...state,
         latestMetrics: newLatest,
         metricsTimeline: [...state.metricsTimeline.slice(-200), timelineEntry],
+        eventLog: newLog,
       };
     }
 
@@ -52,6 +80,9 @@ function reducer(state, action) {
       return {
         ...state,
         alerts: [...state.alerts.slice(-50), action.payload],
+        eventLog: appendLog(state, 'alert',
+          action.payload.summary || action.payload.alerts?.[0]?.annotations?.summary || 'Alert received',
+          action.payload.alerts?.[0]?.startsAt),
       };
 
     case 'agent_step': {
@@ -66,8 +97,16 @@ function reducer(state, action) {
       } else {
         newSteps = [...state.agentSteps, step];
       }
-      // Keep last 20 steps
-      return { ...state, agentSteps: newSteps.slice(-20) };
+
+      // Log investigation start
+      let newLog = state.eventLog;
+      if (step.step === 'schema_grounding' && step.status === 'running') {
+        newLog = appendLog(state, 'investigation', 'AI investigation started — querying schema…');
+      } else if (step.step === 'execution' && step.status === 'complete') {
+        newLog = appendLog({ ...state, eventLog: newLog }, 'investigation', `Query executed: ${step.detail}`);
+      }
+
+      return { ...state, agentSteps: newSteps.slice(-20), eventLog: newLog };
     }
 
     case 'evidence_added':
@@ -75,12 +114,16 @@ function reducer(state, action) {
         ...state,
         evidence: [...state.evidence, action.payload],
         agentSteps: [], // Clear agent steps after evidence is collected
+        eventLog: appendLog(state, 'evidence',
+          `Evidence collected: "${action.payload.question}" → ${action.payload.row_count} rows`),
       };
 
     case 'rca_generated':
       return {
         ...state,
         rca: action.payload,
+        eventLog: appendLog(state, 'rca',
+          `RCA generated — confidence ${Math.round((action.payload.confidence || 0) * 100)}%`),
       };
 
     case 'panel_failed': {
@@ -94,19 +137,38 @@ function reducer(state, action) {
         panels: newPanels,
         panelHealing: {
           ...state.panelHealing,
-          [action.payload.panel_id]: { status: 'failed', ...action.payload },
+          [action.payload.panel_id]: { status: 'failed', steps: [], ...action.payload },
         },
+        eventLog: appendLog(state, 'panel_fail',
+          `Panel "${action.payload.panel_name || action.payload.panel_id}" failed: ${action.payload.error}`),
       };
     }
 
-    case 'panel_healing':
+    case 'panel_healing': {
+      const p = action.payload;
+      const prev = state.panelHealing[p.panel_id] || { steps: [] };
+      const steps = [...(prev.steps || [])];
+
+      // Track each healing step
+      const stepEntry = { step: p.step, status: p.status, detail: p.detail, elapsed: p.elapsed };
+      const existingIdx = steps.findIndex(s => s.step === p.step);
+      if (existingIdx >= 0) {
+        steps[existingIdx] = stepEntry;
+      } else {
+        steps.push(stepEntry);
+      }
+
       return {
         ...state,
         panelHealing: {
           ...state.panelHealing,
-          [action.payload.panel_id]: { ...state.panelHealing[action.payload.panel_id], ...action.payload },
+          [p.panel_id]: { ...prev, ...p, steps },
         },
+        eventLog: p.status === 'running'
+          ? appendLog(state, 'panel_heal', `Healing: ${p.detail}`)
+          : state.eventLog,
       };
+    }
 
     case 'panel_healed': {
       const healedPanels = state.panels.map(p =>
@@ -114,13 +176,16 @@ function reducer(state, action) {
           ? { ...p, status: 'healed' }
           : p
       );
+      const prev = state.panelHealing[action.payload.panel_id] || { steps: [] };
       return {
         ...state,
         panels: healedPanels,
         panelHealing: {
           ...state.panelHealing,
-          [action.payload.panel_id]: { status: 'healed', ...action.payload },
+          [action.payload.panel_id]: { ...prev, status: 'healed', ...action.payload },
         },
+        eventLog: appendLog(state, 'panel_heal',
+          `Panel healed! v${action.payload.old_version} → v${action.payload.new_version}`),
       };
     }
 
@@ -136,6 +201,25 @@ function reducer(state, action) {
         topology: { ...state.topology, nodes: updatedNodes },
       };
     }
+
+    case 'remediation_suggested':
+      return {
+        ...state,
+        actions: [...state.actions, action.payload].slice(-50),
+        eventLog: appendLog(state, 'remediation',
+          `Action suggested: ${(action.payload.action_type || '').replace(/_/g, ' ')}`),
+      };
+
+    case 'backup_started':
+      return {
+        ...state,
+        backupWindows: [...state.backupWindows, {
+          start: action.payload.started_at,
+          end: action.payload.ended_at || null,
+          id: action.payload.backup_id,
+        }].slice(-20),
+        eventLog: appendLog(state, 'storage', `HANA backup started: ${action.payload.backup_type || 'data'}`),
+      };
 
     case 'demo_phase':
       return {

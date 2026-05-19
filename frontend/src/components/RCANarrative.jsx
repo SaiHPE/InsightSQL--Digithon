@@ -1,3 +1,10 @@
+import { Shield, AlertTriangle, Zap, ChevronRight } from 'lucide-react';
+
+/**
+ * RCANarrative — Root cause analysis display with improved readability.
+ * HPE Design: large summary, confidence-colored hypothesis cards,
+ * warning alert for impact, numbered actions with green accents.
+ */
 export default function RCANarrative({ rca }) {
   const data = rca?.rca;
 
@@ -12,37 +19,61 @@ export default function RCANarrative({ rca }) {
           <div className="empty">Awaiting investigation…</div>
         ) : (
           <div className="anim-in">
-            <p className="rca-summary">{data.summary}</p>
+            <div className="rca-summary-card">
+              <Shield size={18} style={{ color: 'var(--hpe-green)', flexShrink: 0, marginTop: 2 }} aria-hidden="true" />
+              <p className="rca-summary">{data.summary}</p>
+            </div>
 
-            {data.hypotheses?.map((h, i) => (
-              <div key={i} className="hypothesis">
-                <div className="hypothesis-title">{i + 1}. {h.cause}</div>
-                <div className="conf-bar" aria-label={`Confidence ${Math.round((h.confidence || 0) * 100)}%`}>
-                  <div className="conf-track">
-                    <div className="conf-fill" style={{ width: `${(h.confidence || 0) * 100}%` }} />
+            {data.hypotheses?.map((h, i) => {
+              const conf = h.confidence || 0;
+              const barColor = conf >= 0.8 ? 'var(--status-critical)' : conf >= 0.5 ? 'var(--status-warning)' : 'var(--hpe-green)';
+              return (
+                <div key={i} className="hypothesis" style={{ borderLeft: `3px solid ${barColor}` }}>
+                  <div className="hypothesis-header">
+                    <div className="hypothesis-rank">#{i + 1}</div>
+                    <div style={{ flex: 1 }}>
+                      <div className="hypothesis-title">{h.cause}</div>
+                      <div className="conf-bar">
+                        <div className="conf-track">
+                          <div className="conf-fill" style={{ width: `${conf * 100}%`, background: barColor }} />
+                        </div>
+                        <span className="conf-val">{Math.round(conf * 100)}%</span>
+                      </div>
+                    </div>
                   </div>
-                  <span className="conf-val">{Math.round((h.confidence || 0) * 100)}%</span>
+                  {h.evidence && (
+                    <div className="hypothesis-evidence">
+                      {h.evidence.map((ev, j) => (
+                        <div key={j} className="evidence-bullet">
+                          <ChevronRight size={12} style={{ color: 'var(--text-xweak)', flexShrink: 0, marginTop: 2 }} />
+                          <span>{ev}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                {h.evidence && (
-                  <div className="hypothesis-evidence">
-                    {h.evidence.map((ev, j) => <div key={j}>• {ev}</div>)}
-                  </div>
-                )}
-              </div>
-            ))}
+              );
+            })}
 
             {data.impact && (
               <div className="rca-impact">
-                <strong>Impact:</strong> {data.impact}
+                <AlertTriangle size={16} aria-hidden="true" />
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 2 }}>Business Impact</div>
+                  <div>{data.impact}</div>
+                </div>
               </div>
             )}
 
             {data.recommended_actions?.length > 0 && (
               <div className="rca-actions">
-                <div className="rca-actions-title">Recommended Actions</div>
+                <div className="rca-actions-title">
+                  <Zap size={14} style={{ color: 'var(--hpe-green)' }} /> Recommended Actions
+                </div>
                 {data.recommended_actions.map((a, i) => (
                   <div key={i} className="rca-action">
-                    <span style={{ color: 'var(--hpe-green)', fontWeight: 500 }}>{i + 1}.</span> {a}
+                    <span className="action-num">{i + 1}</span>
+                    <span>{a}</span>
                   </div>
                 ))}
               </div>
