@@ -1,4 +1,4 @@
-"""Demo scenario scripts — 4 incidents with real data injection and autonomous AI investigation."""
+"""Demo scenario scripts — 3 incidents with real data injection and autonomous AI investigation."""
 
 import asyncio
 from datetime import datetime, timedelta, timezone
@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 import asyncpg
 
 from app.ws.manager import manager
-from app.ingestion.normalizer import normalize_alert, normalize_metrics, normalize_compute_event
+from app.ingestion.normalizer import normalize_alert, normalize_metrics
 from app.agent.investigator import autonomous_investigate
 from app.agent.rca import generate_rca
 from app.agent.healer import heal_panel
@@ -45,16 +45,14 @@ async def run_full_demo(pool: asyncpg.Pool):
 
         await incident_1_sap_slowdown(pool)
         await asyncio.sleep(15)
-        await incident_2_compute_degradation(pool)
-        await asyncio.sleep(15)
         await incident_3_sql_self_heal(pool)
         await asyncio.sleep(15)
         await incident_4_capacity_drift(pool)
 
         await manager.broadcast("demo_phase", {
-            "phase": "complete", "phase_number": 4,
+            "phase": "complete", "phase_number": 3,
             "title": "Demo Complete",
-            "talking_point": "All four incidents demonstrated. InsightSQL auto-investigated, generated evidence-backed RCA, self-healed a broken dashboard panel, and forecast capacity risk.",
+            "talking_point": "All three incidents demonstrated. InsightSQL auto-investigated, generated evidence-backed RCA, self-healed a broken dashboard panel, and forecast capacity risk.",
         })
     except Exception as e:
         import traceback
@@ -193,83 +191,6 @@ async def incident_1_sap_slowdown(pool: asyncpg.Pool):
     })
 
 
-async def incident_2_compute_degradation(pool: asyncpg.Pool):
-    """Incident 2: Host thermal throttling on prd-hana-02."""
-    now = datetime.now(timezone.utc)
-    incident_id = "INC-002"
-
-    # ── Announce incident ───────────────────────────────────────────────
-    async with pool.acquire() as conn:
-        await conn.execute(
-            """INSERT INTO ops.incidents (incident_id, title, severity, status, impact_per_min_usd)
-               VALUES ($1, $2, 'critical', 'active', 8500)
-               ON CONFLICT (incident_id) DO UPDATE SET status = 'active', severity = 'critical'""",
-            incident_id, "Host thermal throttling — prd-hana-02",
-        )
-
-    await manager.broadcast("incident_created", {
-        "incident_id": incident_id,
-        "title": "Host thermal throttling — prd-hana-02",
-        "severity": "critical",
-        "impact_per_min_usd": 8500,
-    })
-
-    await manager.broadcast("demo_phase", {
-        "phase": "incident_2", "phase_number": 2,
-        "title": "Incident 2: Compute Degradation",
-        "talking_point": "Second issue: host prd-hana-02 reports a critical thermal event.",
-    })
-    await asyncio.sleep(4)
-
-    # ── Compute event ──────────────────────────────────────────────────
-    await normalize_compute_event(pool, {
-        "source": "mock_hpe_compute",
-        "resource_id": "host:prd-hana-02",
-        "event_ts": datetime.now(timezone.utc).isoformat(),
-        "severity": "critical",
-        "event_type": "server_health",
-        "summary": "Thermal threshold exceeded on host prd-hana-02",
-        "details": {"health_state": "Critical", "temperature_c": 72, "cpu_util_pct": 91, "fan_status": "degraded"},
-    })
-
-    # ── Stream host metrics — single data path ─────────────────────────
-    for i in range(10):
-        progress = i / 9
-        temp = 42 + (30 * progress)    # 42 → 72°C
-        cpu = 48 + (43 * progress)     # 48 → 91%
-
-        await _inject_and_broadcast(pool, "host:prd-hana-02",
-            {"host.cpu.util_pct": round(cpu, 1), "host.temp.c": round(temp, 1)})
-        await asyncio.sleep(1.5)
-
-    await manager.broadcast("topology_update", {
-        "resource_id": "host:prd-hana-02", "status": "critical",
-        "summary": "Thermal threshold exceeded, fan degraded",
-    })
-    await asyncio.sleep(6)
-
-    # ── AI Investigation (autonomous) ──────────────────────────────────
-    await manager.broadcast("demo_phase", {
-        "phase": "incident_2", "phase_number": 2,
-        "title": "Incident 2: AI Investigation",
-        "talking_point": "InsightSQL cross-correlates storage and compute metrics.",
-    })
-
-    await autonomous_investigate(pool, incident_id,
-        hint="Host prd-hana-02 has a thermal event. Compare CPU, temperature, and check for health events.",
-        title="Host thermal throttling — prd-hana-02",
-        severity="critical",
-    )
-    await asyncio.sleep(8)
-
-    # ── RCA ─────────────────────────────────────────────────────────────
-    await manager.broadcast("demo_phase", {
-        "phase": "incident_2", "phase_number": 2,
-        "title": "Incident 2: Updated RCA",
-        "talking_point": "RCA updated — compound root cause identified.",
-    })
-    await generate_rca(pool, incident_id)
-    await asyncio.sleep(8)
 
 
 async def incident_3_sql_self_heal(pool: asyncpg.Pool):

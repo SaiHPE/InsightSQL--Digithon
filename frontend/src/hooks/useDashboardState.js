@@ -181,6 +181,8 @@ function reducer(state, action) {
           : p
       );
       const prev = state.panelHealing[action.payload.panel_id] || { steps: [] };
+      // Mark ALL healing steps as complete so isHealing becomes false
+      const completedSteps = (prev.steps || []).map(s => ({ ...s, status: 'complete' }));
       // Update panelData with fresh results from healed SQL
       const healedPanelData = { ...state.panelData };
       if (action.payload.rows) {
@@ -199,7 +201,7 @@ function reducer(state, action) {
         panelData: healedPanelData,
         panelHealing: {
           ...state.panelHealing,
-          [action.payload.panel_id]: { ...prev, status: 'healed', ...action.payload },
+          [action.payload.panel_id]: { ...prev, status: 'healed', steps: completedSteps, ...action.payload },
         },
         eventLog: appendLog(state, 'panel_heal',
           `Panel healed! v${action.payload.old_version} → v${action.payload.new_version}`),

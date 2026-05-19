@@ -116,6 +116,8 @@ async def heal_panel(pool: asyncpg.Pool, panel_id: str) -> dict:
             await conn.execute("INSERT INTO ops.panel_query_versions (panel_id, version_no, sql_text, generated_by, is_active, healed_from_version) VALUES ($1, $2, $3, 'healer', true, $4)", panel_id, new_version, healed_sql, current_active["version_no"])
             await conn.execute("UPDATE ops.dashboard_panels SET status = 'healed' WHERE panel_id = $1", panel_id)
 
+    await manager.broadcast("panel_healing", {"panel_id": panel_id, "step": "promoting", "status": "complete", "detail": f"Version {new_version} promoted", "elapsed": round(time.time() - start_time, 2)})
+
     # Include chart data so frontend can render immediately
     chart_type = contract.get("chart_type", "table") if isinstance(contract, dict) else "table"
     result = {

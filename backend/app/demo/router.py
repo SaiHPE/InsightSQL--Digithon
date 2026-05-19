@@ -9,7 +9,6 @@ from app.ws.manager import manager
 from app.demo.scenarios import (
     run_full_demo,
     incident_1_sap_slowdown,
-    incident_2_compute_degradation,
     incident_3_sql_self_heal,
     incident_4_capacity_drift,
 )
@@ -29,9 +28,8 @@ _demo_lock = asyncio.Lock()
 # Map incident number → function + metadata
 _INCIDENTS = {
     1: {"fn": incident_1_sap_slowdown, "title": "SAP Slowdown"},
-    2: {"fn": incident_2_compute_degradation, "title": "Compute Degradation"},
-    3: {"fn": incident_3_sql_self_heal, "title": "SQL Self-Heal"},
-    4: {"fn": incident_4_capacity_drift, "title": "Capacity Drift"},
+    2: {"fn": incident_3_sql_self_heal, "title": "SQL Self-Heal"},
+    3: {"fn": incident_4_capacity_drift, "title": "Capacity Drift"},
 }
 
 
