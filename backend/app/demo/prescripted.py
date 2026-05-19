@@ -78,6 +78,34 @@ WHERE r.resource_type = 'host'
 ORDER BY e.event_ts DESC
 LIMIT 5""",
     },
+    "capacity_trend": {
+        "question": "What is the storage capacity trend over the last 30 days?",
+        "sql": """SELECT
+    date_trunc('day', m.metric_ts) AS day,
+    round(avg(m.metric_value)::numeric, 1) AS used_pct
+FROM ops.metrics_norm m
+WHERE m.resource_id = 'array:primera-prod-01'
+    AND m.metric_name = 'storage.used_pct'
+    AND m.metric_ts >= now() - interval '30 days'
+GROUP BY 1
+ORDER BY 1""",
+    },
+    "backup_volume_growth": {
+        "question": "Which volume has the highest capacity usage?",
+        "sql": """SELECT
+    r.display_name,
+    r.resource_id,
+    round(avg(CASE WHEN m.metric_ts >= now() - interval '7 days' THEN m.metric_value END)::numeric, 1) AS recent_used_pct,
+    round(avg(CASE WHEN m.metric_ts < now() - interval '21 days' THEN m.metric_value END)::numeric, 1) AS month_ago_pct,
+    round((avg(CASE WHEN m.metric_ts >= now() - interval '7 days' THEN m.metric_value END)
+         - avg(CASE WHEN m.metric_ts < now() - interval '21 days' THEN m.metric_value END))::numeric, 1) AS growth_pct
+FROM ops.metrics_norm m
+JOIN ops.resources r ON r.resource_id = m.resource_id
+WHERE m.metric_name = 'storage.used_pct'
+    AND r.resource_type IN ('volume', 'storage_array')
+GROUP BY r.display_name, r.resource_id
+ORDER BY recent_used_pct DESC""",
+    },
 }
 
 # ============================================================
@@ -157,5 +185,35 @@ RCA_RESPONSES = {
             "Reschedule HANA backup to off-peak window",
             "Implement proactive thermal alerting at 55°C warning threshold"
         ]
+    },
+    "incident_4": {
+        "summary": "HPE Primera storage array primera-prod-01 is at 89% capacity with a sustained growth rate of ~0.8%/day. At current trajectory, storage will reach critical threshold (95%) in approximately 14 days. The primary driver is retained HANA backups on hana_backup_lun_01, which has grown from 55% to 90% over 30 days due to the 30-day backup retention policy.",
+        "hypotheses": [
+            {
+                "cause": "HANA backup retention policy retaining 30 days of full data backups on hana_backup_lun_01",
+                "confidence": 0.89,
+                "evidence": [
+                    "hana_backup_lun_01 capacity grew from 55% to 90% over 30 days (+35%)",
+                    "Backup volume growth rate (1.2%/day) exceeds data volume growth rate (0.3%/day)",
+                    "42 retained data backups consuming ~3.2TB of the 4TB volume"
+                ]
+            },
+            {
+                "cause": "Organic SAP data growth exceeding capacity planning estimates",
+                "confidence": 0.45,
+                "evidence": [
+                    "Overall array capacity grew from 65% to 89% over 30 days",
+                    "Data volume growth is steady but secondary to backup accumulation"
+                ]
+            }
+        ],
+        "impact": "Storage exhaustion projected in 14 days. If reached, SAP HANA will fail to write transaction logs, causing immediate production outage.",
+        "recommended_actions": [
+            "Reduce HANA backup retention from 30 days to 14 days to reclaim ~25% capacity immediately",
+            "Request GreenLake capacity expansion via Consumption Analytics portal",
+            "Implement tiered backup storage: move backups older than 7 days to HPE Cloud Volumes",
+            "Configure capacity alerting at 80% warning and 90% critical thresholds"
+        ]
     }
 }
+
