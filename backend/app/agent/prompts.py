@@ -62,7 +62,8 @@ Metric names in ops.metrics_norm (use these exact metric_name values):
 - Host: 'host.cpu.util_pct', 'host.temp.c', 'host.memory.util_pct'
 - Storage: 'storage.latency.ms', 'storage.iops', 'storage.queue_depth', 'storage.saturation.score', 'storage.used_pct'
 
-Backup data is in ops.sap_backups (columns: backup_id, sid, started_at, ended_at, status, backup_type, retained, bytes_written)."""
+Backup data is in ops.sap_backups (columns: backup_id, sid, started_at, ended_at, status, backup_type, retained, bytes_written).
+IMPORTANT: sap_backups.sid stores the BARE SID name (e.g. 'PRD'), NOT the resource_id format. Do NOT use 'sap_sid:PRD' for the sid column."""
 
 
 # ============================================================
