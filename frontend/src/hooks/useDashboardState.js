@@ -17,7 +17,6 @@ const initialState = {
   // New fields
   eventLog: [],
   actions: [],
-  backupWindows: [],
 };
 
 /**
@@ -182,9 +181,22 @@ function reducer(state, action) {
           : p
       );
       const prev = state.panelHealing[action.payload.panel_id] || { steps: [] };
+      // Update panelData with fresh results from healed SQL
+      const healedPanelData = { ...state.panelData };
+      if (action.payload.rows) {
+        healedPanelData[action.payload.panel_id] = {
+          panel_id: action.payload.panel_id,
+          status: 'healed',
+          chart_type: action.payload.chart_type || 'table',
+          columns: action.payload.columns || [],
+          rows: action.payload.rows || [],
+          row_count: action.payload.row_count || 0,
+        };
+      }
       return {
         ...state,
         panels: healedPanels,
+        panelData: healedPanelData,
         panelHealing: {
           ...state.panelHealing,
           [action.payload.panel_id]: { ...prev, status: 'healed', ...action.payload },
@@ -213,17 +225,6 @@ function reducer(state, action) {
         actions: [...state.actions, action.payload].slice(-50),
         eventLog: appendLog(state, 'remediation',
           `Action suggested: ${(action.payload.action_type || '').replace(/_/g, ' ')}`),
-      };
-
-    case 'backup_started':
-      return {
-        ...state,
-        backupWindows: [...state.backupWindows, {
-          start: action.payload.started_at,
-          end: action.payload.ended_at || null,
-          id: action.payload.backup_id,
-        }].slice(-20),
-        eventLog: appendLog(state, 'storage', `HANA backup started: ${action.payload.backup_type || 'data'}`),
       };
 
     case 'demo_phase':

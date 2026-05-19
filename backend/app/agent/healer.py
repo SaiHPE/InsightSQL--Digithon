@@ -114,6 +114,20 @@ async def heal_panel(pool: asyncpg.Pool, panel_id: str) -> dict:
             await conn.execute("INSERT INTO ops.panel_query_versions (panel_id, version_no, sql_text, generated_by, is_active, healed_from_version) VALUES ($1, $2, $3, 'healer', true, $4)", panel_id, new_version, healed_sql, current_active["version_no"])
             await conn.execute("UPDATE ops.dashboard_panels SET status = 'healed' WHERE panel_id = $1", panel_id)
 
-    result = {"panel_id": panel_id, "status": "healed", "old_sql": broken_sql, "new_sql": healed_sql, "error_fixed": error_text, "old_version": active_query["version_no"], "new_version": new_version, "shadow_rows": shadow_result.row_count, "elapsed": round(time.time() - start_time, 2)}
+    # Include chart data so frontend can render immediately
+    chart_type = contract.get("chart_type", "table") if isinstance(contract, dict) else "table"
+    result = {
+        "panel_id": panel_id, "status": "healed",
+        "old_sql": broken_sql, "new_sql": healed_sql,
+        "error_fixed": error_text,
+        "old_version": active_query["version_no"], "new_version": new_version,
+        "shadow_rows": shadow_result.row_count,
+        "elapsed": round(time.time() - start_time, 2),
+        # Fresh data for the healed panel chart
+        "chart_type": chart_type,
+        "columns": shadow_result.columns or [],
+        "rows": shadow_result.rows or [],
+        "row_count": shadow_result.row_count,
+    }
     await manager.broadcast("panel_healed", result)
     return result

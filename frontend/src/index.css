@@ -1205,60 +1205,7 @@ a:hover {
   flex-shrink: 0;
 }
 
-/* === CHAT INPUT === */
-.chat-input-wrapper {
-  background: var(--bg-front);
-  border: 1px solid var(--border-weak);
-  border-radius: var(--radius-md);
-  padding: var(--space-sm);
-}
 
-.chat-input-form {
-  display: flex;
-  align-items: center;
-  gap: var(--space-xxs);
-  background: var(--bg-input);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-full);
-  padding: var(--space-4xs) var(--space-4xs) var(--space-4xs) var(--space-sm);
-  transition: border-color var(--duration-micro) var(--ease-out);
-}
-.chat-input-form:focus-within {
-  border-color: var(--hpe-green);
-}
-
-.chat-input-icon {
-  color: var(--text-xweak);
-  flex-shrink: 0;
-}
-
-.chat-input {
-  flex: 1;
-  background: none;
-  border: none;
-  color: var(--text-strong);
-  font-family: inherit;
-  font-size: 14px;
-  padding: var(--space-xxs) var(--space-xxs);
-  outline: none;
-}
-.chat-input::placeholder { color: var(--text-xweak); }
-.chat-input:disabled { opacity: 0.5; }
-
-.chat-send {
-  width: 36px;
-  height: 36px;
-  padding: 0;
-  border-radius: var(--radius-full) !important;
-  flex-shrink: 0;
-}
-
-.chat-error {
-  margin-top: var(--space-xxs);
-  font-size: 12px;
-  color: var(--status-critical);
-  padding-left: var(--space-sm);
-}
 
 /* === ACTION PANEL === */
 .action-list {
@@ -1490,7 +1437,7 @@ a:hover {
 .dp-tile-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   padding: var(--space-xxs) var(--space-xs);
   border-bottom: 1px solid var(--border-weak);
 }
@@ -1503,6 +1450,58 @@ a:hover {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.dp-tile-desc {
+  font-size: 10px;
+  color: var(--text-xweak);
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Column change callout */
+.dp-column-change-callout {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xxs);
+  padding: var(--space-xxs) var(--space-sm);
+  background: rgba(1, 169, 130, 0.08);
+  border: 1px solid rgba(1, 169, 130, 0.25);
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--space-sm);
+  color: var(--hpe-green);
+  font-size: 13px;
+  font-weight: 500;
+  flex-wrap: wrap;
+}
+.dp-callout-label {
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  margin-right: var(--space-4xs);
+}
+.dp-change-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4xs);
+  padding: 2px var(--space-xxs);
+  background: rgba(26, 31, 43, 0.6);
+  border-radius: var(--radius-sm);
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 400;
+}
+.dp-change-from {
+  color: var(--status-critical);
+  text-decoration: line-through;
+  opacity: 0.85;
+}
+.dp-change-to {
+  color: var(--status-ok);
+  font-weight: 600;
 }
 .dp-tile-status {
   width: 20px;

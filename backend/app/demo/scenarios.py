@@ -60,11 +60,6 @@ async def incident_1_sap_slowdown(pool: asyncpg.Pool):
                ON CONFLICT DO NOTHING""",
             backup_start,
         )
-    await manager.broadcast("backup_started", {
-        "backup_id": "backup-incident-001",
-        "started_at": backup_start.isoformat(),
-        "backup_type": "data",
-    })
     await asyncio.sleep(2)
 
     await manager.broadcast("demo_phase", {

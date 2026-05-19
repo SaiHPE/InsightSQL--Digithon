@@ -87,3 +87,41 @@ async def health_check():
         "database": "connected",
         "pg_version": version,
     }
+
+
+@app.post("/api/ask")
+async def adhoc_ask(body: dict):
+    """Ad-hoc Text-to-SQL question — works without an active incident.
+
+    Creates or reuses an 'adhoc' incident so the full investigation
+    pipeline (schema grounding → SQL gen → validation → execution)
+    runs identically, and results stream via WebSocket to the AI panel.
+    """
+    from app.agent.text_to_sql import investigate
+
+    question = (body.get("question") or "").strip()
+    if not question:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=422, detail="question is required")
+
+    pool = await get_pool()
+
+    # Ensure an adhoc incident row exists so evidence_runs FK doesn't fail
+    incident_id = "adhoc-query"
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """INSERT INTO ops.incidents (incident_id, title, severity, status)
+               VALUES ($1, 'Ad-hoc investigation', 'info', 'active')
+               ON CONFLICT (incident_id) DO UPDATE SET status = 'active'""",
+            incident_id,
+        )
+
+    # Broadcast so frontend picks up the context
+    await manager.broadcast("incident_created", {
+        "incident_id": incident_id,
+        "title": "Ad-hoc investigation",
+        "severity": "info",
+    })
+
+    result = await investigate(pool, incident_id, question)
+    return result

@@ -10,7 +10,7 @@ import TopologyGraph from './components/TopologyGraph';
 import EventLog from './components/EventLog';
 import DashboardPanels from './components/DashboardPanels';
 import AIPanel from './components/AIPanel';
-import ChatInput from './components/ChatInput';
+
 import DemoControl from './components/DemoControl';
 
 export default function App() {
@@ -96,7 +96,7 @@ export default function App() {
           {/* Row 1: Timeline (wide) + Topology (sidebar) */}
           <div className="dash-row-hero">
             <div className="dash-col-wide">
-              <TimelineChart metricsTimeline={state.metricsTimeline} backupWindows={state.backupWindows} />
+              <TimelineChart metricsTimeline={state.metricsTimeline} />
             </div>
             <div className="dash-col-narrow">
               <TopologyGraph topology={state.topology} />
@@ -122,14 +122,8 @@ export default function App() {
             </div>
           </div>
 
-          {/* Row 3: Event Log + Chat */}
-          <div className="dash-row-bottom">
-            <EventLog events={state.eventLog} />
-            <ChatInput
-              incidentId={state.currentIncident?.incident_id}
-              isInvestigating={isInvestigating}
-            />
-          </div>
+          {/* Row 3: Event Log */}
+          <EventLog events={state.eventLog} />
         </div>
       </main>
 
