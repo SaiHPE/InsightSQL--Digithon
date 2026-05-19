@@ -22,6 +22,10 @@ class Settings(BaseSettings):
         "gpt-5.4-mini-hackathon4",
     ]
 
+    # Ollama Fallback
+    ollama_endpoint: str = "http://10.25.41.176:11434/v1"
+    ollama_model: str = "nemotron-cascade-2:30b"
+
     # Webhook authentication
     webhook_api_key: str = ""
 

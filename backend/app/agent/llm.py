@@ -97,7 +97,22 @@ async def _call_with_failover(messages, temperature, max_completion_tokens, resp
             last_error = e
             continue
 
-    raise last_error  # All deployments exhausted
+    # Fallback to Ollama if all Azure deployments fail
+    _logger.warning("All Azure deployments exhausted or failed. Falling back to Ollama model %s", settings.ollama_model)
+    try:
+        from openai import AsyncOpenAI
+        # We use a separate client for Ollama without the Azure wrapper
+        ollama_client = AsyncOpenAI(
+            base_url=settings.ollama_endpoint,
+            api_key="ollama" # required by the OpenAI client but ignored by Ollama
+        )
+        kwargs = dict(model=settings.ollama_model, messages=messages, temperature=temperature, max_completion_tokens=max_completion_tokens)
+        if response_format:
+            kwargs["response_format"] = response_format
+        return await ollama_client.chat.completions.create(**kwargs)
+    except Exception as e:
+        _logger.error("Ollama fallback failed as well: %s", e)
+        raise e if last_error is None else last_error
 
 
 async def generate_sql(system_prompt: str, user_prompt: str, temperature: float = 0.1) -> str:
