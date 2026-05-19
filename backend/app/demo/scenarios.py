@@ -198,6 +198,7 @@ async def incident_1_sap_slowdown(pool: asyncpg.Pool):
 
     # Broadcast remediation for action panel
     await manager.broadcast("remediation_suggested", {
+        "incident_id": "INC-001",
         "action_type": "reschedule_backup",
         "target_resource_id": "sap_sid:PRD",
         "status": "suggested",
@@ -452,12 +453,14 @@ async def incident_4_capacity_drift(pool: asyncpg.Pool):
         )
 
     await manager.broadcast("remediation_suggested", {
+        "incident_id": incident_id,
         "action_type": "adjust_retention",
         "target_resource_id": "volume:hana_backup_lun_01",
         "status": "suggested",
         "notes": "Reduce backup retention from 30 days to 14 days to reclaim ~25% capacity",
     })
     await manager.broadcast("remediation_suggested", {
+        "incident_id": incident_id,
         "action_type": "expand_capacity",
         "target_resource_id": "array:primera-prod-01",
         "status": "suggested",

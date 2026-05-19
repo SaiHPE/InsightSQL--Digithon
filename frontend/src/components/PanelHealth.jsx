@@ -128,7 +128,7 @@ export default function PanelHealth({ panels = [], healing }) {
               {h.error_fixed && h.status === 'healed' && (
                 <div style={{ marginTop: 'var(--space-sm)', padding: 'var(--space-sm)', background: 'var(--status-ok-bg)', borderRadius: 'var(--radius-sm)', fontSize: 13, color: 'var(--status-ok)' }}>
                   <Check size={14} style={{ verticalAlign: 'middle', marginRight: 'var(--space-4xs)' }} />
-                  Fixed: {h.error_fixed} • Shadow-run verified ({h.shadow_rows} rows) • Promoted in {h.elapsed}s
+                  Fixed: {h.error_fixed}{h.shadow_rows != null ? ` • Shadow-run verified (${h.shadow_rows} rows)` : ''}{h.elapsed != null ? ` • Promoted in ${h.elapsed}s` : ''}
                 </div>
               )}
             </div>

@@ -102,7 +102,7 @@ ORDER BY 1""",
 FROM ops.metrics_norm m
 JOIN ops.resources r ON r.resource_id = m.resource_id
 WHERE m.metric_name = 'storage.used_pct'
-    AND r.resource_type IN ('volume', 'storage_array')
+    AND r.resource_type = 'volume'
 GROUP BY r.display_name, r.resource_id
 ORDER BY recent_used_pct DESC""",
     },

@@ -43,7 +43,7 @@ export default function ChatInput({ incidentId, isInvestigating }) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${apiBase}/api/incidents/${incidentId}/ask`, {
+      const res = await fetch(`${apiBase}/api/incidents/${encodeURIComponent(incidentId)}/ask`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ question: q }),

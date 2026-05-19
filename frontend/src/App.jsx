@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import useWebSocket from './hooks/useWebSocket';
 import useDashboardState from './hooks/useDashboardState';
 import Header from './components/Header';
@@ -30,9 +30,6 @@ export default function App() {
   useEffect(() => { loadInitialData(); }, [loadInitialData]);
   useEffect(() => { if (lastMessage) handleMessage(lastMessage); }, [lastMessage, handleMessage]);
 
-  // Auto-switch tabs during demo based on phase events
-  const prevPhase = useCallback(() => state.demo.phase, [state.demo.phase]);
-
   useEffect(() => {
     const phase = state.demo.phase;
     // Switch to investigation when agent steps start or evidence arrives
@@ -47,7 +44,7 @@ export default function App() {
     if (phase === 'incident_4' && activeTab === 'panel-health') {
       setActiveTab('investigation');
     }
-  }, [state.demo.phase, state.agentSteps.length]);
+  }, [state.demo.phase, state.agentSteps.length, activeTab]);
 
   // Determine if an investigation is actively running (for chat input disabled state)
   const isInvestigating = state.agentSteps.some(s => s.status === 'running');

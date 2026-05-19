@@ -205,7 +205,7 @@ function reducer(state, action) {
     case 'remediation_suggested':
       return {
         ...state,
-        actions: [...state.actions, action.payload],
+        actions: [...state.actions, action.payload].slice(-50),
         eventLog: appendLog(state, 'remediation',
           `Action suggested: ${(action.payload.action_type || '').replace(/_/g, ' ')}`),
       };
@@ -217,7 +217,7 @@ function reducer(state, action) {
           start: action.payload.started_at,
           end: action.payload.ended_at || null,
           id: action.payload.backup_id,
-        }],
+        }].slice(-20),
         eventLog: appendLog(state, 'storage', `HANA backup started: ${action.payload.backup_type || 'data'}`),
       };
 

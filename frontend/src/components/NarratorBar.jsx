@@ -23,11 +23,11 @@ export default function NarratorBar({ demo }) {
     if (fullText === textRef.current) return;
     textRef.current = fullText;
     setDisplayedText('');
+    clearInterval(intervalRef.current);
 
     if (!fullText) return;
 
     let i = 0;
-    clearInterval(intervalRef.current);
     intervalRef.current = setInterval(() => {
       i++;
       setDisplayedText(fullText.slice(0, i));
