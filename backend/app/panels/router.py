@@ -14,26 +14,25 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-@router.get("")
-async def list_panels():
-    """List all dashboard panels with their health status."""
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        panels = await conn.fetch(
-            """SELECT p.panel_id, p.panel_name, p.status, p.contract_json,
-                      v.version_no, v.generated_by, v.sql_text, v.created_at AS version_created
-               FROM ops.dashboard_panels p
-               LEFT JOIN ops.panel_query_versions v
-                 ON v.panel_id = p.panel_id AND v.is_active = true
-               ORDER BY p.panel_id"""
-        )
-    return [dict(r) for r in panels]
+async def panel_refresh_loop():
+    """Background loop: re-execute all panel SQL every 10s and broadcast fresh data.
+
+    This ensures dashboard panels always reflect the latest DB state,
+    including metric spikes injected by the demo scenario.
+    """
+    while True:
+        await asyncio.sleep(10)
+        try:
+            pool = await get_pool()
+            data = await _fetch_all_panel_data(pool)
+            if data:
+                await manager.broadcast("panel_data_refresh", data)
+        except Exception:
+            logger.debug("Panel refresh cycle skipped", exc_info=True)
 
 
-@router.get("/all-data")
-async def get_all_panel_data():
-    """Execute all active panel queries and return chart-ready data."""
-    pool = await get_pool()
+async def _fetch_all_panel_data(pool):
+    """Execute all active panel queries and return chart-ready data dict."""
     async with pool.acquire() as conn:
         panels = await conn.fetch(
             """SELECT p.panel_id, p.panel_name, p.status, p.contract_json,
@@ -64,19 +63,34 @@ async def get_all_panel_data():
                 "rows": [dict(r) for r in rows[:50]],
                 "row_count": len(rows),
             }
-        except Exception as e:
-            logger.exception("Panel %s query execution failed", pid)
-            results[pid] = {
-                "panel_id": pid,
-                "panel_name": panel_row["panel_name"],
-                "status": "failed",
-                "error": "Panel query execution failed",
-                "rows": [],
-                "row_count": 0,
-            }
+        except Exception:
+            logger.debug("Panel %s refresh query failed", pid, exc_info=True)
 
     await asyncio.gather(*[_exec_one(p) for p in panels])
     return results
+
+
+@router.get("")
+async def list_panels():
+    """List all dashboard panels with their health status."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        panels = await conn.fetch(
+            """SELECT p.panel_id, p.panel_name, p.status, p.contract_json,
+                      v.version_no, v.generated_by, v.sql_text, v.created_at AS version_created
+               FROM ops.dashboard_panels p
+               LEFT JOIN ops.panel_query_versions v
+                 ON v.panel_id = p.panel_id AND v.is_active = true
+               ORDER BY p.panel_id"""
+        )
+    return [dict(r) for r in panels]
+
+
+@router.get("/all-data")
+async def get_all_panel_data():
+    """Execute all active panel queries and return chart-ready data."""
+    pool = await get_pool()
+    return await _fetch_all_panel_data(pool)
 
 
 @router.get("/{panel_id}/versions")

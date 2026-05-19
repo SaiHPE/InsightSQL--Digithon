@@ -250,6 +250,10 @@ function reducer(state, action) {
     case 'UPDATE_PANEL_DATA':
       return { ...state, panelData: { ...state.panelData, ...action.payload } };
 
+    case 'panel_data_refresh':
+      // Merge fresh panel data from backend refresh loop, preserving healed status
+      return { ...state, panelData: { ...state.panelData, ...action.payload } };
+
     case 'SET_BASELINE': {
       const { timeline, latest } = action.payload;
       return {

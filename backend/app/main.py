@@ -26,9 +26,13 @@ async def lifespan(app: FastAPI):
     print("[APP] Starting InsightSQL...")
     pool = await init_db()
     await seed_all(pool)
+    # Start panel refresh background loop
+    from app.panels.router import panel_refresh_loop
+    refresh_task = asyncio.create_task(panel_refresh_loop())
     print("[APP] Ready.")
     yield
     # Shutdown
+    refresh_task.cancel()
     from app.agent.llm import close_client
     await close_client()
     await close_db()
