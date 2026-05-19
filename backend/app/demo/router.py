@@ -1,12 +1,18 @@
-"""Demo control endpoints — start, reset, status."""
+"""Demo control endpoints — start individual incidents, reset, status."""
 
 import asyncio
-from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi import APIRouter, HTTPException
 
 from app.db.engine import get_pool
 from app.db.seed import seed_all
 from app.ws.manager import manager
-from app.demo.scenarios import run_full_demo
+from app.demo.scenarios import (
+    run_full_demo,
+    incident_1_sap_slowdown,
+    incident_2_compute_degradation,
+    incident_3_sql_self_heal,
+    incident_4_capacity_drift,
+)
 
 router = APIRouter()
 
@@ -15,14 +21,54 @@ _demo_state = {
     "running": False,
     "phase": "idle",
     "task": None,
+    "completed": set(),   # track which incidents have run
 }
 
 _demo_lock = asyncio.Lock()
 
+# Map incident number → function + metadata
+_INCIDENTS = {
+    1: {"fn": incident_1_sap_slowdown, "title": "SAP Slowdown"},
+    2: {"fn": incident_2_compute_degradation, "title": "Compute Degradation"},
+    3: {"fn": incident_3_sql_self_heal, "title": "SQL Self-Heal"},
+    4: {"fn": incident_4_capacity_drift, "title": "Capacity Drift"},
+}
+
+
+@router.post("/incident/{incident_num}")
+async def trigger_incident(incident_num: int):
+    """Trigger a single incident by number (1-4)."""
+    if incident_num not in _INCIDENTS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid incident number: {incident_num}. Must be 1-4.",
+        )
+
+    async with _demo_lock:
+        if _demo_state["running"]:
+            raise HTTPException(status_code=409, detail="An incident is already running")
+
+        pool = await get_pool()
+        meta = _INCIDENTS[incident_num]
+        _demo_state["running"] = True
+        _demo_state["phase"] = f"incident_{incident_num}"
+
+        async def _run():
+            try:
+                await meta["fn"](pool)
+                _demo_state["completed"].add(incident_num)
+            finally:
+                _demo_state["running"] = False
+                _demo_state["phase"] = "idle"
+
+        _demo_state["task"] = asyncio.create_task(_run())
+
+    return {"status": "started", "incident": incident_num, "title": meta["title"]}
+
 
 @router.post("/start")
-async def start_demo(background_tasks: BackgroundTasks):
-    """Start the full 3-incident demo sequence."""
+async def start_demo():
+    """Start the full 4-incident demo sequence (auto-sequenced)."""
     async with _demo_lock:
         if _demo_state["running"]:
             raise HTTPException(status_code=409, detail="Demo already running")
@@ -34,11 +80,11 @@ async def start_demo(background_tasks: BackgroundTasks):
         async def _run():
             try:
                 await run_full_demo(pool)
+                _demo_state["completed"] = {1, 2, 3, 4}
             finally:
                 _demo_state["running"] = False
                 _demo_state["phase"] = "idle"
 
-        # Run in background
         _demo_state["task"] = asyncio.create_task(_run())
 
     return {"status": "started"}
@@ -79,15 +125,16 @@ async def reset_demo():
 
     _demo_state["phase"] = "idle"
     _demo_state["running"] = False
+    _demo_state["completed"] = set()
 
     await manager.broadcast("demo_phase", {
         "phase": "idle",
         "phase_number": 0,
         "title": "Ready",
-        "talking_point": "Dashboard reset. Click Run Demo to begin.",
+        "talking_point": "Dashboard reset. Trigger an incident to begin.",
     })
 
-    return {"status": "reset"}
+    return {"status": "reset", "completed": []}
 
 
 @router.get("/status")
@@ -96,4 +143,5 @@ async def demo_status():
     return {
         "running": _demo_state["running"],
         "phase": _demo_state["phase"],
+        "completed": sorted(_demo_state["completed"]),
     }
