@@ -37,8 +37,7 @@ if command -v curl &> /dev/null; then
 
 # Probe vLLM / Standard OpenAI compatible port (8000)
 echo "-> Probing http://localhost:8000/v1/models (vLLM / Triton / FastAPI)..."
-RESPONSE_8000=$(curl -s -f --max-time 2 http://localhost:8000/v1/models)
-if [ $? -eq 0 ]; then
+if RESPONSE_8000=$(curl -s -f --max-time 2 http://localhost:8000/v1/models); then
     echo "$RESPONSE_8000" | grep -o '"id":"[^"]*"' | sed 's/"id"://g' | sed 's/"//g' | awk '{print "   Found model: "$0}'
 else
     echo "   Endpoint unreachable or returned no models."
@@ -46,8 +45,7 @@ fi
 
 # Probe standard Ollama API port
 echo "-> Probing http://localhost:11434/api/tags (Ollama)..."
-RESPONSE_11434=$(curl -s -f --max-time 2 http://localhost:11434/api/tags)
-if [ $? -eq 0 ]; then
+if RESPONSE_11434=$(curl -s -f --max-time 2 http://localhost:11434/api/tags); then
     echo "$RESPONSE_11434" | grep -o '"name":"[^"]*"' | sed 's/"name"://g' | sed 's/"//g' | awk '{print "   Found model: "$0}'
 else
     echo "   Endpoint unreachable or returned no models."
